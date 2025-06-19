@@ -1,0 +1,9 @@
+version: '3.8'
+services:
+  automation:
+    build: .
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    environment:
+      - NODE_ENV=development

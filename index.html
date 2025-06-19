@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subsidi Tepat Lpg Automation</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="./style.css" rel="stylesheet">
+    <script src="./helper/getToken.js"></script>
+
+</head>
+<body>
+    <div class="flex flex-col gap-4 items-center justify-center h-screen bg-gray-100">
+        <div class="">
+            <label for="email" class="block text-sm/6 font-medium text-gray-900">Email / Nomor Ponsel</label>
+            <input type="text" name="email" id="email" placeholder="" class="block border border-gray-300 rounded p-2">
+        </div>
+        <div class="">
+            <label for="pin" class="block text-sm/6 font-medium text-gray-900">PIN</label>
+            <input type="password" name="pin" id="pin" class="block border border-gray-300 rounded p-2">
+        </div>
+        <div>
+            <button 
+            onclick="getToken()"
+            class="w-full bg-blue-500 text-white font-semibold py-2 px-4 rounded hover:bg-blue-600 transition duration-200 cursor-pointer">Login</button>
+        </div>
+    </div>
+</body>
+</html>
