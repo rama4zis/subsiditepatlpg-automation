@@ -31,3 +31,4 @@ logs/
 .dockerignore
 
 data/
+reports/

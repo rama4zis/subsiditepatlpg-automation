@@ -2,6 +2,7 @@ import puppeteer, { Browser, Page } from 'puppeteer';
 import { LoginService } from './logic/login';
 import * as dotenv from 'dotenv';
 import { InputDataService } from './logic/input-data';
+import nikNumbers from './data/nikNumbers';
 
 // Load environment variables
 dotenv.config();
@@ -52,7 +53,7 @@ async function runAutomation(): Promise<void> {
     // input data
     const inputDataService = new InputDataService(page);
     const nik: string = '3215251109860001'; // Replace with the NIK you want to input
-    await inputDataService.inputData(nik);
+    await inputDataService.inputData(nikNumbers);
     
     
     const title: string = await page.title();
