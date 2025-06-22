@@ -1,6 +1,5 @@
-import { ElementHandle, Page } from 'puppeteer';
+import { Page } from 'puppeteer';
 import { ExcelExportService } from './excel-export';
-import { resolve } from 'path';
 
 interface InputData {
     nik: string;
@@ -15,20 +14,19 @@ export class InputDataService {
 
     // async inputData(nik: string[]): Promise<void> {
     async inputData(nik: string[]): Promise<void> {
+        let pelangganDone: {
+            name: string | null;
+            status: string | null;
+            jenisPengguna: string | null;
+            nik: string | null;
+        }[] = [];
+
+        let errorLog: {
+            nik: string;
+            error: string;
+            timestamp: Date;
+        }[] = [];
         try {
-            let pelangganDone: {
-                name: string | null;
-                status: string | null;
-                jenisPengguna: string | null;
-                nik: string | null;
-            } [] = [];
-
-            let errorLog: {
-                nik: string;
-                error: string;
-                timestamp: Date;
-            }[] = [];
-
             await this.page.waitForSelector('input[id="mantine-r2"]', { timeout: 5000 });
 
             if (await this.page.$('input[id="mantine-r2"]') === null) {
@@ -37,71 +35,6 @@ export class InputDataService {
             } else {
                 console.log('Input field found, proceeding with input.');
             }
-
-            // For one NIK
-            // await this.page.type('input[id="mantine-r2"]', nik, { delay: 100 });
-            // await this.page.click('button[type="submit"]', { delay: 100 });
-
-            // await this.page.waitForNavigation({ waitUntil: 'load' });
-
-            // // wait for selector that class contains like "infoPelangganSubsidi"
-            // await this.page.waitForSelector('[class*="infoPelangganSubsidi"]', { timeout: 5000 });
-
-            // // innerText infopelanggan split by "\n"
-            // const dataPelanggan: string[] = await this.page.$eval('[class*="infoPelangganSubsidi"]', (element: any) => {
-            //     return element.innerText.split('\n') || [];
-            // });
-
-            // // console.log('Data Pelanggan:', dataPelanggan);
-
-            // // button plus 
-            // await this.page.waitForSelector('button[data-testid="actionIcon2"]', { timeout: 5000 });
-            // if (dataPelanggan.some((item: string) => item.includes('Rumah Tangga'))) {
-            //     console.log(`Jenis Pengguna: ${dataPelanggan[dataPelanggan.length - 2]}`);
-            //     await this.page.click('button[data-testid="actionIcon2"]', { delay: 100 });
-
-            //     // then click button submit with text "Cek Pesanan"
-            //     await this.page.click('button[data-testid="btnCheckOrder"]', { delay: 100 });
-
-            //     await this.page.waitForSelector('button[data-testid="btnPay"]', { timeout: 5000 });
-            //     if (await this.page.$('button[data-testid="btnPay"]') === null) {
-            //         console.error('Payment button not found. Please check the selector.');
-            //         return;
-            //     } else {
-            //         console.log('Payment button found, proceeding with payment.');
-            //         // tab and enter 
-            //         await this.page.keyboard.press('Tab');
-            //         await this.page.keyboard.press('Enter');
-
-            //         // push pelangganDone
-            //         pelangganDone.push({
-            //             name: dataPelanggan[1],
-            //             jenisPengguna: dataPelanggan[dataPelanggan.length - 2],
-            //             nik: nik
-            //         });
-            //     }
-            // } else {
-            //     console.log(`Jenis Pengguna: ${dataPelanggan[dataPelanggan.length - 2]}`);
-            //     for (let i = 1; i <= 3; i++) { // Click the button 3 times
-            //         await this.page.click('button[data-testid="actionIcon2"]', { delay: 100 });
-            //     }
-            //     await this.page.waitForSelector('button[data-testid="btnCheckOrder"]', { timeout: 100 });
-            //     if (await this.page.$('button[data-testid="btnCheckOrder"]') === null) {
-            //         console.error('Check Order button not found. Please check the selector.');
-            //         return;
-            //     } else {
-            //         console.log('Check Order button found, proceeding with check order.');
-            //         // tab and enter
-            //         await this.page.keyboard.press('Tab');
-            //         await this.page.keyboard.press('Enter');
-
-            //         pelangganDone.push({
-            //             name: dataPelanggan[1],
-            //             jenisPengguna: dataPelanggan[dataPelanggan.length - 2],
-            //             nik: nik
-            //         });
-            //     }
-            // }
 
             // For multiple NIK
             for (const number of nik) {
@@ -112,36 +45,36 @@ export class InputDataService {
                 try {
                     // Wait a bit for potential error to appear
                     await new Promise(resolve => setTimeout(resolve, 2000));
-                    
+
                     // Check if error element exists without waiting
                     const errorElement = await this.page.$('div#mantine-r2-error');
                     if (errorElement) {
                         const errorMessage = 'NIK not found or invalid';
                         console.error(`NIK ${number} not found or invalid. Please check the NIK.`);
-                        
+
                         // Add to error log
                         errorLog.push({
                             nik: number,
                             error: errorMessage,
                             timestamp: new Date()
                         });
-                        
+
                         // refresh page
                         await this.page.reload({ waitUntil: 'load' });
                         continue; // Skip to the next NIK
                     }
-                    
+
                     console.log(`No error found for NIK ${number}, proceeding...`);
                 } catch (error) {
                     console.error(`Error while checking NIK ${number}:`, error);
-                    
+
                     // Add to error log
                     errorLog.push({
                         nik: number,
                         error: `Error while processing: ${error}`,
                         timestamp: new Date()
                     });
-                    
+
                     // refresh page
                     await this.page.reload({ waitUntil: 'load' });
                     // push to pelangganDone with error status
@@ -158,16 +91,11 @@ export class InputDataService {
                 try {
                     // Wait a bit for potential dialog to appear
                     await new Promise(resolve => setTimeout(resolve, 1000));
-                    
+
                     const multipleChoicesElement = await this.page.$('div#mantine-r7-body');
                     if (multipleChoicesElement) {
                         console.log(`Multiple choices found for NIK ${number}. Selecting the first option.`);
-                        // make checkbox checked
-                        // const checkbox = await this.page.$('input[value="Rumah Tangga"]');
-                        // checkbox?.click({ delay: 100 });
-
-                        // await this.page.click('input[value="Rumah Tangga"]', { delay: 100 });
-                        // const btnTransaction = await this.page.$('button[type="btnContinueTrx"]');
+                        
                         const btnTransaction = await this.page.$('button[data-testid="btnContinueTrx"]');
                         if (btnTransaction) {
                             console.log(`Button to continue transaction found for NIK ${number}. Clicking...`);
@@ -184,54 +112,40 @@ export class InputDataService {
                     console.error(`Error while handling multiple choices for NIK ${number}:`, error);
                 }
 
-
                 // if perbarui data pelanggan
                 try {
-                    await new Promise(resolve => setTimeout(resolve, 1000)); 
+                    await new Promise(resolve => setTimeout(resolve, 1000));
 
-                    const perbaruiDataElement = await this.page.$('xpath///*[@id="mantine-rb-body"]/div/div[1]/button'); 
+                    const perbaruiDataElement = await this.page.$('xpath///*[@id="mantine-rb-body"]/div/div[1]/button');
 
                     // if innerText includes "Perbarui Data Pelanggan"
                     if (perbaruiDataElement && await this.page.evaluate(el => el.innerText.includes('Perbarui Data Pelanggan'), perbaruiDataElement)) {
-                        // push pelangganDone with error status
-                        pelangganDone.push({
-                            name: null,
-                            status: "Gagal",
-                            jenisPengguna: null,
-                            nik: number
-                        });
-                        // reload 
-                        await this.page.reload({ waitUntil: 'load' });
-                        console.error(`Perbarui Data Pelanggan found for NIK ${number}. Please update the data manually.`);
-                        continue; // Skip to the next NIK
+                        // If still can go to transaction
+                        const lanjutkanTransaksiButton = await this.page.$('xpath///*[@id="mantine-rb-body"]/div/div[2]/button');
+                        if (lanjutkanTransaksiButton) {
+                            console.log(`Lanjutkan Transaksi button found for NIK ${number}. Clicking...`);
+                            await lanjutkanTransaksiButton.click({ delay: 100 });
+                        } else {
+                            console.error(`Lanjutkan Transaksi button not found for NIK ${number}.`);
+                            // push pelangganDone with error status
+                            pelangganDone.push({
+                                name: null,
+                                status: "Gagal",
+                                jenisPengguna: null,
+                                nik: number
+                            });
+                            // reload 
+                            await this.page.reload({ waitUntil: 'load' });
+                            console.error(`Perbarui Data Pelanggan found for NIK ${number}. Please update the data manually.`);
+                            continue; // Skip to the next NIK
+                        }
                     } else {
                         console.log(`No Perbarui Data Pelanggan found for NIK ${number}, proceeding...`);
                     }
                 } catch (error) {
-                    
+
                 }
 
-
-                // if (await this.page.waitForSelector('div#mantine-r2-error') !== null) {
-                //     console.error(`NIK ${number} not found or invalid. Please check the NIK.`);
-                //     // refresh page
-                //     await this.page.reload({ waitUntil: 'load' });
-                //     continue; // Skip to the next NIK
-                // } else {
-                //     console.log(`NIK ${number} found, proceeding with input.`);
-                // }
-
-                // handle if get multiple choices
-                // if (await this.page.waitForSelector('div#mantine-r7-body')  !== null) {
-                //     console.log(`Multiple choices found for NIK ${number}. Selecting the first option.`);
-                //     await this.page.click('input[value="Rumah Tangga"]', { delay: 100 });
-                //     await this.page.click('button[type="btnContinueTrx"]', { delay: 100 });
-                // } else {
-                //     console.log(`No multiple choices found for NIK ${number}. Proceeding with the next steps.`);
-                // }
-
-                // Wait for navigation or success indicator
-                // await this.page.waitForNavigation({ waitUntil: 'load' });
                 await new Promise(resolve => setTimeout(resolve, 1000));
 
                 // Wait for the info pelanggan selector to appear
@@ -337,7 +251,7 @@ export class InputDataService {
 
             // Export unified report with both success and error data
             const excelExporter = new ExcelExportService();
-            
+
             // Combine successful and error data into one array
             const allData = [
                 // Successful data
@@ -376,6 +290,34 @@ export class InputDataService {
 
         } catch (error) {
             console.error('Error inputting data:', error);
+            // export data Excel, till the last successful NIK
+            const excelExporter = new ExcelExportService();
+            const allData = [
+                ...pelangganDone.map(customer => ({
+                    name: customer.name || 'Unknown',
+                    jenisPengguna: customer.jenisPengguna || 'Unknown',
+                    nik: customer.nik || 'Unknown',
+                    status: customer.status === 'Gagal' ? 'Error' : 'Success',
+                    errorMessage: customer.status === 'Gagal' ? 'Processing failed' : undefined,
+                    timestamp: new Date()
+                })),
+                ...errorLog.map(error => ({
+                    name: 'Unknown',
+                    jenisPengguna: 'Unknown',
+                    nik: error.nik,
+                    status: 'Error',
+                    errorMessage: error.error,
+                    timestamp: error.timestamp
+                }))
+            ];
+            if (allData.length > 0) {
+                try {
+                    const filePath = await excelExporter.exportToExcel(allData);
+                    console.log(`✅ Excel report successfully exported to: ${filePath}`);
+                } catch (exportError) {
+                    console.error('❌ Failed to export Excel report:', exportError);
+                }
+            }
         }
     }
 }
