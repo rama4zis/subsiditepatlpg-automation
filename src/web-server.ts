@@ -97,7 +97,7 @@ async function processAutomation(nikNumbers: string[]): Promise<void> {
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--single-process',
+            // '--single-process',
             '--disable-gpu',
             '--disable-background-timer-throttling',
             '--disable-backgrounding-occluded-windows',

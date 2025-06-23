@@ -19,12 +19,8 @@ export class InputDataService {
             status: string | null;
             jenisPengguna: string | null;
             nik: string | null;
-        }[] = [];
-
-        let errorLog: {
-            nik: string;
-            error: string;
-            timestamp: Date;
+            error?: string;
+            timestamp?: Date;
         }[] = [];
         try {
             await this.page.waitForSelector('input[id="mantine-r2"]', { timeout: 5000 });
@@ -52,8 +48,11 @@ export class InputDataService {
                         const errorMessage = 'NIK not found or invalid';
                         console.error(`NIK ${number} not found or invalid. Please check the NIK.`);
 
-                        // Add to error log
-                        errorLog.push({
+                        // Add to pelanggan done with error
+                        pelangganDone.push({
+                            name: null,
+                            status: "Gagal",
+                            jenisPengguna: null,
                             nik: number,
                             error: errorMessage,
                             timestamp: new Date()
@@ -68,8 +67,11 @@ export class InputDataService {
                 } catch (error) {
                     console.error(`Error while checking NIK ${number}:`, error);
 
-                    // Add to error log
-                    errorLog.push({
+                    // push to pelangganDone with error status
+                    pelangganDone.push({
+                        name: null,
+                        status: "Gagal",
+                        jenisPengguna: null,
                         nik: number,
                         error: `Error while processing: ${error}`,
                         timestamp: new Date()
@@ -77,13 +79,6 @@ export class InputDataService {
 
                     // refresh page
                     await this.page.reload({ waitUntil: 'load' });
-                    // push to pelangganDone with error status
-                    pelangganDone.push({
-                        name: null,
-                        status: "Gagal",
-                        jenisPengguna: null,
-                        nik: number
-                    });
                     continue; // Skip to the next NIK
                 }
 
@@ -165,18 +160,14 @@ export class InputDataService {
                     // if allert innerText includes "melebihi batas kewajaran"
                     if (alert && await this.page.evaluate(el => el.innerText.includes('melebihi batas kewajaran'), alert)) {
                         console.error(`NIK ${number} exceeds the reasonable limit. Please check the NIK.`);
-                        // Add to error log
-                        errorLog.push({
-                            nik: number,
-                            error: `NIK exceeds the reasonable limit`,
-                            timestamp: new Date()
-                        });
                         // push to pelangganDone with error status
                         pelangganDone.push({
                             name: null,
                             status: "Gagal",
                             jenisPengguna: null,
-                            nik: number
+                            nik: number,
+                            error: `NIK exceeds the reasonable limit`,
+                            timestamp: new Date()
                         });
                         // refresh page
                         await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
@@ -247,32 +238,20 @@ export class InputDataService {
 
             console.log(`Inputted NIK: ${nik}`);
             console.log(`Processed ${pelangganDone.length} customers successfully`);
-            console.log(`Errors encountered: ${errorLog.length}`);
+            console.log(`Errors encountered: ${pelangganDone.filter(p => p.status === 'Gagal').length}`);
 
-            // Export unified report with both success and error data
+            // Export unified report with all data
             const excelExporter = new ExcelExportService();
 
-            // Combine successful and error data into one array
-            const allData = [
-                // Successful data
-                ...pelangganDone.map(customer => ({
-                    name: customer.name || 'Unknown',
-                    jenisPengguna: customer.jenisPengguna || 'Unknown',
-                    nik: customer.nik || 'Unknown',
-                    status: customer.status === 'Gagal' ? 'Error' : 'Success',
-                    errorMessage: customer.status === 'Gagal' ? 'Processing failed' : undefined,
-                    timestamp: new Date()
-                })),
-                // Error data
-                ...errorLog.map(error => ({
-                    name: 'Unknown',
-                    jenisPengguna: 'Unknown',
-                    nik: error.nik,
-                    status: 'Error',
-                    errorMessage: error.error,
-                    timestamp: error.timestamp
-                }))
-            ];
+            // Map pelangganDone data to export format
+            const allData = pelangganDone.map(customer => ({
+                name: customer.name || 'Unknown',
+                jenisPengguna: customer.jenisPengguna || 'Unknown',
+                nik: customer.nik || 'Unknown',
+                status: customer.status === 'Gagal' ? 'Error' : 'Success',
+                errorMessage: customer.error || undefined,
+                timestamp: customer.timestamp || new Date()
+            }));
 
             if (allData.length > 0) {
                 try {
@@ -292,24 +271,14 @@ export class InputDataService {
             console.error('Error inputting data:', error);
             // export data Excel, till the last successful NIK
             const excelExporter = new ExcelExportService();
-            const allData = [
-                ...pelangganDone.map(customer => ({
-                    name: customer.name || 'Unknown',
-                    jenisPengguna: customer.jenisPengguna || 'Unknown',
-                    nik: customer.nik || 'Unknown',
-                    status: customer.status === 'Gagal' ? 'Error' : 'Success',
-                    errorMessage: customer.status === 'Gagal' ? 'Processing failed' : undefined,
-                    timestamp: new Date()
-                })),
-                ...errorLog.map(error => ({
-                    name: 'Unknown',
-                    jenisPengguna: 'Unknown',
-                    nik: error.nik,
-                    status: 'Error',
-                    errorMessage: error.error,
-                    timestamp: error.timestamp
-                }))
-            ];
+            const allData = pelangganDone.map(customer => ({
+                name: customer.name || 'Unknown',
+                jenisPengguna: customer.jenisPengguna || 'Unknown',
+                nik: customer.nik || 'Unknown',
+                status: customer.status === 'Gagal' ? 'Error' : 'Success',
+                errorMessage: customer.error || undefined,
+                timestamp: customer.timestamp || new Date()
+            }));
             if (allData.length > 0) {
                 try {
                     const filePath = await excelExporter.exportToExcel(allData);

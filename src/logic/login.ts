@@ -17,9 +17,9 @@ export class LoginService {
             await this.page.goto(loginUrl);
 
             // Wait for login form to load
-            await this.page.waitForSelector('input[id="mantine-r0"]', { timeout: 5000 });
+            const loginInput = await this.page.$('input[id="mantine-r0"]');
 
-            if(await this.page.$('input[id="mantine-r0"]') === null) {
+            if (loginInput === null) {
                 console.error('Login form not found. Please check the login URL or selector.');
                 return false;
             } else {
@@ -34,7 +34,7 @@ export class LoginService {
             await this.page.click('button[type="submit"], input[type="submit"]');
 
             // Wait for navigation or success indicator
-            await this.page.waitForNavigation({ waitUntil: 'load' });
+            await this.page.waitForNavigation();
 
             return true;
         } catch (error: unknown) {
