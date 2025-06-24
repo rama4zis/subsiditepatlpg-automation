@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import puppeteer, { Browser, Page } from 'puppeteer';
 import { LoginService } from './logic/login';
 import { InputDataService } from './logic/input-data';
@@ -268,9 +269,25 @@ async function processAutomation(nikNumbers: string[], limit?: number): Promise<
 }
 
 // Start server
-app.listen(port, () => {
-    console.log(`🌐 Web server running at http://localhost:${port}`);
-    console.log(`📝 Open the URL to input NIK data through web interface`);
+const host = process.env.HOST || '0.0.0.0'; // Listen on all network interfaces
+app.listen(port, host, () => {
+    console.log(`🌐 Web server running at:`);
+    console.log(`   Local:   http://localhost:${port}`);
+    console.log(`   Network: http://${host}:${port}`);
+    console.log(`📝 Open any of these URLs to input NIK data through web interface`);
+    
+    // Try to get the actual network IP
+    const networkInterfaces = os.networkInterfaces();
+    
+    console.log(`\n🌍 Available network addresses:`);
+    Object.keys(networkInterfaces).forEach(interfaceName => {
+        const interfaces = networkInterfaces[interfaceName];
+        interfaces?.forEach((iface) => {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                console.log(`   ${interfaceName}: http://${iface.address}:${port}`);
+            }
+        });
+    });
 });
 
 export default app;

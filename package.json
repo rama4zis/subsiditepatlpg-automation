@@ -20,7 +20,8 @@
     "dev": "nodemon --exec ts-node src/index.ts",
     "dev:watch": "nodemon --watch src --ext ts --exec ts-node src/index.ts",
     "web": "nodemon --exec ts-node src/web-server.ts",
-    "web:build": "tsc && node dist/web-server.js"
+    "web:build": "tsc && node dist/web-server.js",
+    "web:public": "HOST=0.0.0.0 nodemon --exec ts-node src/web-server.ts"
   },
   "dependencies": {
     "dotenv": "^16.5.0",
