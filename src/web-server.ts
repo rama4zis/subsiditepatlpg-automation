@@ -191,7 +191,7 @@ async function processAutomation(nikNumbers: string[], limit?: number): Promise<
     }
     
     const browser: Browser = await puppeteer.launch({
-        headless: false, // Use headless mode in Docker
+        headless: true, // Use headless mode in Docker
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
         args: [
             '--no-sandbox',
