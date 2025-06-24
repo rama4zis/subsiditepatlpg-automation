@@ -1,6 +1,10 @@
+let totalData;
+
 function parseNikData(nikData) {
     // Split by enter, comma, space, and semicolon
     const delimiters = /[\n\r,;\s]+/;
+
+    totalData = nikData.split(delimiters).length;
 
     return nikData
         .split(delimiters)
@@ -65,6 +69,7 @@ document.getElementById('nikForm').addEventListener('submit', async function (e)
     e.preventDefault();
 
     const nikData = document.getElementById('nikData').value;
+    const limiter = document.getElementById('limiter').value;
 
     if (!nikData.trim()) {
         showStatus('Please enter NIK data', 'error');
@@ -87,14 +92,18 @@ document.getElementById('nikForm').addEventListener('submit', async function (e)
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ nikData })
+            body: JSON.stringify({ 
+                nikData,
+                limiter: limiter ? parseInt(limiter) : null
+            })
         });
 
         const result = await response.json();
 
         if (response.ok) {
+            const limitText = result.limit && result.limit < result.totalCount ? ` (Limited to ${result.limit} successful entries)` : '';
             showStatus(
-                `✅ Processing started! ${result.nikCount} NIK numbers queued for automation. Check the terminal/console for progress.`,
+                `✅ Processing started! ${result.nikCount} NIK numbers queued for automation${limitText}. Estimated time: ${result.estimatedTimeMinutes || 'calculating'} minutes.`,
                 'success'
             );
 
@@ -114,15 +123,95 @@ document.getElementById('nikForm').addEventListener('submit', async function (e)
             nikCount.textContent = `Total: ${result.totalCount} NIK numbers being processed`;
             preview.style.display = 'block';
 
+            // Start polling for progress
+            setTimeout(pollProgress, 2000);
+
         } else {
             showStatus(`❌ Error: ${result.error}`, 'error');
+            hideLoading();
         }
     } catch (error) {
         showStatus(`❌ Network error: ${error.message}`, 'error');
-    } finally {
         hideLoading();
     }
 });
+
+// Progress tracking functions
+function updateProgress(progressData) {
+    const loading = document.getElementById('loading');
+    const loadingText = document.getElementById('loadingText');
+    const progressFill = document.getElementById('progressFill');
+    
+    if (progressData.status === 'processing') {
+        if (progressFill) progressFill.style.width = `${progressData.progress}%`;
+        const limitInfo = progressData.limit ? ` (Limit: ${progressData.successfulProcessed || 0}/${progressData.limit})` : '';
+        if (loadingText) {
+            loadingText.innerHTML = `
+                🔄 Processing NIK ${progressData.processed + 1}/${progressData.total}
+                Current: ${progressData.current}
+                Progress: ${progressData.progress}%${limitInfo}
+                Elapsed: ${progressData.elapsedTime}
+                Remaining: ${progressData.remainingTime}
+            `;
+        }
+    } else if (progressData.status === 'completed') {
+        if (progressFill) progressFill.style.width = '100%';
+        if (loadingText) loadingText.innerHTML = `✅ Processing completed! Downloading report...`;
+    } else if (progressData.status === 'error') {
+        if (loadingText) loadingText.innerHTML = `❌ Error occurred during processing`;
+    }
+}
+
+async function downloadReport() {
+    try {
+        const response = await fetch('/api/download-report');
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'subsidite-pat-lpg-report.xlsx';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            showStatus('✅ Report downloaded successfully!', 'success');
+        } else {
+            showStatus('❌ Failed to download report', 'error');
+        }
+    } catch (error) {
+        showStatus(`❌ Download error: ${error.message}`, 'error');
+    }
+}
+
+async function pollProgress() {
+    try {
+        const response = await fetch('/api/status');
+        const progressData = await response.json();
+        
+        if (progressData.status && progressData.status !== 'No active processing') {
+            updateProgress(progressData);
+            
+            if (progressData.status === 'completed' && progressData.hasReport) {
+                // Wait a moment then download
+                setTimeout(async () => {
+                    await downloadReport();
+                    hideLoading();
+                }, 1000);
+            } else if (progressData.status === 'error') {
+                hideLoading();
+                showStatus('❌ Processing failed. Check console for details.', 'error');
+            } else if (progressData.status === 'processing') {
+                // Continue polling
+                setTimeout(pollProgress, 2000);
+            }
+        }
+    } catch (error) {
+        console.error('Error polling progress:', error);
+        setTimeout(pollProgress, 5000); // Retry after 5 seconds on error
+    }
+}
 
 // Auto-preview on input change (debounced)
 let previewTimeout;

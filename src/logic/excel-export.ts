@@ -25,7 +25,7 @@ export class ExcelExportService {
         }
     }
 
-    async exportToExcel(data: PelangganData[], filename?: string): Promise<string> {
+    async exportToExcel(data: PelangganData[], filename?: string, web?: boolean): Promise<string | any> {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Laporan Subsidite Pat LPG');
 
@@ -63,12 +63,18 @@ export class ExcelExportService {
 
         const filePath = path.join(this.reportsDir, filename);
 
-        // Save the file
-        await workbook.xlsx.writeFile(filePath);
-
-        console.log(`📊 Excel report saved to: ${filePath}`);
-        console.log(`📈 Total records exported: ${data.length}`);
-
-        return filePath;
+        if (web) {
+            // For web requests, return the buffer directly
+            const buffer = await workbook.xlsx.writeBuffer();
+            console.log(`📊 Excel report generated for web download`);
+            console.log(`📈 Total records exported: ${data.length}`);
+            return buffer;
+        } else {
+            // Only handle file saving in Node.js environment
+            await workbook.xlsx.writeFile(filePath);
+            console.log(`📊 Excel report saved to: ${filePath}`);
+            console.log(`📈 Total records exported: ${data.length}`);
+            return filePath;
+        }
     }
 }

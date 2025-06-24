@@ -12,8 +12,7 @@ export class InputDataService {
         this.page = page;
     }
 
-    // async inputData(nik: string[]): Promise<void> {
-    async inputData(nik: string[]): Promise<void> {
+    async inputData(nik: string[], progressCallback?: (processed: number, current: string) => void, limit?: number): Promise<string | null> {
         let pelangganDone: {
             name: string | null;
             status: string | null;
@@ -27,13 +26,26 @@ export class InputDataService {
 
             if (await this.page.$('input[id="mantine-r2"]') === null) {
                 console.error('Input field not found. Please check the selector.');
-                return;
+                return null;
             } else {
                 console.log('Input field found, proceeding with input.');
             }
 
+            // Set default limit to the total number of NIKs if not specified
+            const maxLimit = limit && limit > 0 ? limit : nik.length;
+            let successfulProcessed = 0;
+
             // For multiple NIK
-            for (const number of nik) {
+            for (let i = 0; i < nik.length && successfulProcessed < maxLimit; i++) {
+                const number = nik[i];
+                
+                // Update progress
+                if (progressCallback) {
+                    progressCallback(i, number);
+                }
+                
+                console.log(`Processing NIK ${i + 1}/${nik.length}: ${number} (Successful: ${successfulProcessed}/${maxLimit})`);
+                
                 await this.page.type('input[id="mantine-r2"]', number, { delay: 100 });
                 await this.page.click('button[type="submit"]', { delay: 100 });
 
@@ -114,7 +126,7 @@ export class InputDataService {
                     const perbaruiDataElement = await this.page.$('xpath///*[@id="mantine-rb-body"]/div/div[1]/button');
 
                     // if innerText includes "Perbarui Data Pelanggan"
-                    if (perbaruiDataElement && await this.page.evaluate(el => el.innerText.includes('Perbarui Data Pelanggan'), perbaruiDataElement)) {
+                    if (perbaruiDataElement && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('Perbarui Data Pelanggan'), perbaruiDataElement)) {
                         // If still can go to transaction
                         const lanjutkanTransaksiButton = await this.page.$('xpath///*[@id="mantine-rb-body"]/div/div[2]/button');
                         if (lanjutkanTransaksiButton) {
@@ -158,7 +170,7 @@ export class InputDataService {
                     const alert = await this.page.$('xpath///*[@id="__next"]/div[1]/div/main/div/div/div/div/div/div/div[2]/div[3]/div/div/span');
 
                     // if allert innerText includes "melebihi batas kewajaran"
-                    if (alert && await this.page.evaluate(el => el.innerText.includes('melebihi batas kewajaran'), alert)) {
+                    if (alert && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('melebihi batas kewajaran'), alert)) {
                         console.error(`NIK ${number} exceeds the reasonable limit. Please check the NIK.`);
                         // push to pelangganDone with error status
                         pelangganDone.push({
@@ -193,12 +205,39 @@ export class InputDataService {
                     await this.page.waitForSelector('button[data-testid="btnPay"]', { timeout: 5000 });
                     if (await this.page.$('button[data-testid="btnPay"]') === null) {
                         console.error('Payment button not found. Please check the selector.');
-                        return;
+                        // reload page and continue to next NIK
+                        await this.page.reload({ waitUntil: 'load' });
+                        continue;
                     } else {
                         console.log('Payment button found, proceeding with payment.');
                         // Tab and enter to confirm payment
-                        await this.page.keyboard.press('Tab');
-                        await this.page.keyboard.press('Enter');
+                        const btnPay = await this.page.$('button[data-testid="btnPay"]');
+                        if (btnPay) {
+                            // await btnPay.click({ delay: 100 });
+                            await this.page.$eval('button[data-testid="btnPay"]', (el: any) => el.click());
+                            console.log('Clicked payment button successfully.');
+                            // Pause for 5 seconds to allow payment processing
+                            await new Promise(resolve => setTimeout(resolve, 5000));
+
+                        } else {
+                            console.error('Payment button not found after clicking Cek Pesanan. Please check the selector.');
+
+                            // push to pelangganDone with error status
+                            pelangganDone.push({
+                                name: dataPelanggan[1],
+                                status: "Gagal",
+                                jenisPengguna: dataPelanggan[dataPelanggan.length - 2],
+                                nik: number,
+                                error: 'Payment button not found after clicking Cek Pesanan',
+                                timestamp: new Date()
+                            });
+
+                            // reload page and continue to next NIK
+                            await this.page.reload({ waitUntil: 'load' });
+                            continue;
+                        }
+                        // await this.page.keyboard.press('Tab');
+                        // await this.page.keyboard.press('Enter');
 
                         // Push to pelangganDone array
                         pelangganDone.push({
@@ -207,6 +246,16 @@ export class InputDataService {
                             jenisPengguna: dataPelanggan[dataPelanggan.length - 2],
                             nik: number
                         });
+                        
+                        // Increment successful counter
+                        successfulProcessed++;
+                        console.log(`✅ Successfully processed NIK ${number}. Count: ${successfulProcessed}/${maxLimit}`);
+                        
+                        // Check if we've reached the limit
+                        if (successfulProcessed >= maxLimit) {
+                            console.log(`🎯 Reached the processing limit of ${maxLimit} successful NIKs. Stopping processing.`);
+                            break;
+                        }
                     }
                 } else {
                     console.log(`Jenis Pengguna: ${dataPelanggan[dataPelanggan.length - 2]}`);
@@ -216,7 +265,9 @@ export class InputDataService {
                     await this.page.waitForSelector('button[data-testid="btnCheckOrder"]', { timeout: 100 });
                     if (await this.page.$('button[data-testid="btnCheckOrder"]') === null) {
                         console.error('Check Order button not found. Please check the selector.');
-                        return;
+                        // reload page and continue to next NIK
+                        await this.page.reload({ waitUntil: 'load' });
+                        continue;
                     } else {
                         console.log('Check Order button found, proceeding with check order.');
                         // Tab and enter to confirm check order
@@ -229,6 +280,16 @@ export class InputDataService {
                             jenisPengguna: dataPelanggan[dataPelanggan.length - 2],
                             nik: number
                         });
+                        
+                        // Increment successful counter
+                        successfulProcessed++;
+                        console.log(`✅ Successfully processed NIK ${number}. Count: ${successfulProcessed}/${maxLimit}`);
+                        
+                        // Check if we've reached the limit
+                        if (successfulProcessed >= maxLimit) {
+                            console.log(`🎯 Reached the processing limit of ${maxLimit} successful NIKs. Stopping processing.`);
+                            break;
+                        }
                     }
                 }
 
@@ -283,10 +344,14 @@ export class InputDataService {
                 try {
                     const filePath = await excelExporter.exportToExcel(allData);
                     console.log(`✅ Excel report successfully exported to: ${filePath}`);
+                    return filePath;
                 } catch (exportError) {
                     console.error('❌ Failed to export Excel report:', exportError);
+                    return null;
                 }
             }
+            return null;
         }
+        return null;
     }
 }

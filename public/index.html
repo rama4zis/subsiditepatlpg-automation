@@ -6,6 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Subsidi Tepat LPG - NIK Data Input</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        #limiter {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+    </style>
 </head>
 
 <body>
@@ -17,6 +26,15 @@
 
         <form id="nikForm">
             <div class="form-group">
+
+                <label for="limiter">Limit</label>
+                <div class="input-info">
+                    <strong>ℹ️ Optional:</strong>
+                    <p>Set a limit for the number of NIKs to process. Default is max your input.</p>
+                    <p>Note: If you set a limit, only the first NIKs up to that limit will be processed.</p>
+                </div>
+                <input type="number" id="limiter" name="limiter" placeholder="Enter limit (optional)">
+
                 <label for="nikData">NIK Numbers Input</label>
                 <div class="input-info">
                     <strong>📝 Input Format:</strong>
@@ -51,7 +69,10 @@
 
         <div id="loading" class="loading">
             <div class="spinner"></div>
-            <p>🔄 Processing automation...</p>
+            <div class="progress-bar">
+                <div id="progressFill" class="progress-fill"></div>
+            </div>
+            <p id="loadingText">🔄 Processing automation...</p>
         </div>
 
         <div id="status" class="status"></div>
