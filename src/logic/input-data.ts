@@ -192,6 +192,26 @@ export class InputDataService {
                     console.error(`Error while checking limit for NIK ${number}:`, error);
                 }
 
+                // if mantine-Stack-root mantine-1oo286g "Tidak dapat transaksi, stok tabung yang dapat dijual kosong. Silakan lakukan penebusan."
+                const checkStock = await this.page.$('[class*="mantine-Stack-root"]');
+                if (checkStock && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('stok tabung yang dapat dijual kosong'), checkStock)) {
+                    console.error(`NIK ${number} cannot proceed due to empty stock. Please check the stock.`);
+                    // push to pelangganDone with error status
+                    pelangganDone.push({
+                        name: dataPelanggan[1] || null,
+                        status: "Gagal",
+                        jenisPengguna: null,
+                        nik: number,
+                        error: `Cannot proceed due to empty stock`,
+                        timestamp: new Date()
+                    });
+                    // refresh page
+                    await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
+                    console.log(`Refreshed page for NIK ${number}.`);
+                    // End the program, break the loop
+                    break;
+                }
+
                 // Check if jenis pengguna is Rumah Tangga
                 await this.page.waitForSelector('button[data-testid="actionIcon2"]', { timeout: 1000 });
                 if (dataPelanggan.some((item: string) => item.includes('Rumah Tangga'))) {
