@@ -46,13 +46,13 @@ export class InputDataService {
                 
                 console.log(`Processing NIK ${i + 1}/${nik.length}: ${number} (Successful: ${successfulProcessed}/${maxLimit})`);
                 
-                await this.page.type('input[id="mantine-r2"]', number, { delay: 100 });
+                await this.page.type('input[id="mantine-r2"]', number, { delay: 50 });
                 await this.page.click('button[type="submit"]', { delay: 100 });
 
                 // Check if "NIK pelanggan tidak terdaftar" error appears
                 try {
                     // Wait a bit for potential error to appear
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    await new Promise(resolve => setTimeout(resolve, 1000));
 
                     // Check if error element exists without waiting
                     const errorElement = await this.page.$('div#mantine-r2-error');
@@ -156,7 +156,7 @@ export class InputDataService {
                 await new Promise(resolve => setTimeout(resolve, 1000));
 
                 // Wait for the info pelanggan selector to appear
-                await this.page.waitForSelector('[class*="infoPelangganSubsidi"]', { timeout: 5000 });
+                await this.page.waitForSelector('[class*="infoPelangganSubsidi"]', { timeout: 1000 });
 
                 // Extract data from the info pelanggan element
                 const dataPelanggan: string[] = await this.page.$eval('[class*="infoPelangganSubsidi"]', (element: any) => {
@@ -193,7 +193,7 @@ export class InputDataService {
                 }
 
                 // Check if jenis pengguna is Rumah Tangga
-                await this.page.waitForSelector('button[data-testid="actionIcon2"]', { timeout: 5000 });
+                await this.page.waitForSelector('button[data-testid="actionIcon2"]', { timeout: 1000 });
                 if (dataPelanggan.some((item: string) => item.includes('Rumah Tangga'))) {
                     console.log(`Jenis Pengguna: ${dataPelanggan[dataPelanggan.length - 2]}`);
                     await this.page.click('button[data-testid="actionIcon2"]', { delay: 100 });
@@ -202,7 +202,7 @@ export class InputDataService {
                     await this.page.click('button[data-testid="btnCheckOrder"]', { delay: 100 });
 
                     // Wait for the payment button to appear
-                    await this.page.waitForSelector('button[data-testid="btnPay"]', { timeout: 5000 });
+                    await this.page.waitForSelector('button[data-testid="btnPay"]', { timeout: 1000 });
                     if (await this.page.$('button[data-testid="btnPay"]') === null) {
                         console.error('Payment button not found. Please check the selector.');
                         // reload page and continue to next NIK
@@ -216,8 +216,8 @@ export class InputDataService {
                             // await btnPay.click({ delay: 100 });
                             await this.page.$eval('button[data-testid="btnPay"]', (el: any) => el.click());
                             console.log('Clicked payment button successfully.');
-                            // Pause for 5 seconds to allow payment processing
-                            await new Promise(resolve => setTimeout(resolve, 5000));
+                            // Pause for 1 seconds to allow payment processing
+                            await new Promise(resolve => setTimeout(resolve, 1000));
 
                         } else {
                             console.error('Payment button not found after clicking Cek Pesanan. Please check the selector.');
