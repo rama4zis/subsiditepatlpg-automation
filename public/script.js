@@ -164,23 +164,49 @@ function updateProgress(progressData) {
 
 async function downloadReport() {
     try {
+        console.log('🔄 Starting download...');
         const response = await fetch('/api/download-report');
+        
+        console.log('📥 Download response status:', response.status);
+        
         if (response.ok) {
             const blob = await response.blob();
+            console.log('📊 Downloaded blob size:', blob.size, 'bytes');
+            
+            if (blob.size === 0) {
+                showStatus('❌ Downloaded file is empty', 'error');
+                return;
+            }
+            
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'subsidite-pat-lpg-report.xlsx';
+            
+            // Get filename from response headers
+            const contentDisposition = response.headers.get('Content-Disposition');
+            let filename = 'subsidite-pat-lpg-report.xlsx';
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
+                if (filenameMatch) {
+                    filename = filenameMatch[1];
+                }
+            }
+            
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
             
+            console.log('✅ Download triggered successfully');
             showStatus('✅ Report downloaded successfully!', 'success');
         } else {
-            showStatus('❌ Failed to download report', 'error');
+            const errorData = await response.json();
+            console.error('❌ Download failed:', errorData);
+            showStatus(`❌ Failed to download report: ${errorData.error || 'Unknown error'}`, 'error');
         }
     } catch (error) {
+        console.error('❌ Download error:', error);
         showStatus(`❌ Download error: ${error.message}`, 'error');
     }
 }
@@ -229,3 +255,40 @@ document.getElementById('nikData').addEventListener('input', function () {
         }
     }, 1000);
 });
+
+// Function to show reset button
+function showResetButton() {
+    const resetBtn = document.getElementById('resetBtn');
+    if (resetBtn) {
+        resetBtn.style.display = 'inline-block';
+    }
+}
+
+// Function to reset automation
+async function resetAutomation() {
+    try {
+        const response = await fetch('/api/reset', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        if (response.ok) {
+            // Reset UI
+            hideLoading();
+            hideStatus();
+            document.getElementById('preview').style.display = 'none';
+            document.getElementById('resetBtn').style.display = 'none';
+            document.getElementById('nikData').value = '';
+            document.getElementById('limiter').value = '';
+            
+            showStatus('✅ Automation reset successfully!', 'success');
+            setTimeout(() => hideStatus(), 3000);
+        } else {
+            showStatus('❌ Failed to reset automation', 'error');
+        }
+    } catch (error) {
+        showStatus(`❌ Reset error: ${error.message}`, 'error');
+    }
+}

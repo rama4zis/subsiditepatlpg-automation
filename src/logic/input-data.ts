@@ -341,11 +341,14 @@ export class InputDataService {
                     console.log(`📊 Total records: ${allData.length}`);
                     console.log(`✅ Successful: ${allData.filter(d => d.status === 'Success').length}`);
                     console.log(`❌ Errors: ${allData.filter(d => d.status === 'Error').length}`);
+                    return filePath; // Return the file path for web download
                 } catch (exportError) {
                     console.error('❌ Failed to export Excel report:', exportError);
+                    return null;
                 }
             } else {
                 console.log('No data to export to Excel.');
+                return null;
             }
 
         } catch (error) {
@@ -372,6 +375,5 @@ export class InputDataService {
             }
             return null;
         }
-        return null;
     }
 }

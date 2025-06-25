@@ -24,6 +24,7 @@ interface ProcessingProgress {
     estimatedEndTime: Date;
     reportBuffer?: any;
     filename?: string;
+    filePath?: string;
     data?: any[];
     limit?: number;
     successfulProcessed?: number;
@@ -140,36 +141,111 @@ app.get('/api/status', (req: Request, res: Response) => {
 
 // API endpoint to download the generated report
 app.get('/api/download-report', async (req: Request, res: Response) => {
+    console.log('📥 Download report requested...');
+    
     if (!currentProgress) {
+        console.log('❌ No current progress found');
         res.status(404).json({ error: 'No report available' });
         return;
     }
     
+    console.log('📊 Current progress status:', currentProgress.status);
+    console.log('📊 Has report buffer:', !!currentProgress.reportBuffer);
+    console.log('📊 Has data:', !!currentProgress.data);
+    console.log('📊 File path:', currentProgress.filePath);
+    
     try {
         let buffer: any;
         let filename: string;
+        let filePath: string | null = null;
         
         if (currentProgress.reportBuffer) {
             buffer = currentProgress.reportBuffer;
             filename = currentProgress.filename || 'subsidite-pat-lpg-report.xlsx';
+            filePath = currentProgress.filePath || null;
+            console.log('✅ Using existing buffer for download');
         } else if (currentProgress.data) {
             // Generate Excel on-the-fly if we have data but no buffer
+            console.log('🔄 Generating Excel from data...');
             const excelExporter = new ExcelExportService();
             buffer = await excelExporter.exportToExcel(currentProgress.data, undefined, true);
             filename = `subsidite-pat-lpg-report-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.xlsx`;
+            console.log('✅ Excel generated from data');
         } else {
+            console.log('❌ No report data available');
             res.status(404).json({ error: 'No report data available' });
             return;
         }
         
+        console.log(`📥 Sending Excel download: ${filename}, buffer size: ${buffer?.length || 0} bytes`);
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Length', buffer.length);
         res.send(buffer);
+        
+        // Clean up the physical file after successful download
+        if (filePath && fs.existsSync(filePath)) {
+            try {
+                fs.unlinkSync(filePath);
+                console.log(`🗑️  Deleted temporary file: ${filePath}`);
+            } catch (deleteError) {
+                console.error(`⚠️  Failed to delete temporary file ${filePath}:`, deleteError);
+            }
+        }
+        
+        console.log(`✅ Excel file downloaded successfully: ${filename}`);
     } catch (error) {
-        console.error('Error generating download:', error);
+        console.error('❌ Error generating download:', error);
         res.status(500).json({ error: 'Failed to generate report' });
     }
 });
+
+// API endpoint to reset automation state
+app.post('/api/reset', (req: Request, res: Response) => {
+    // Clean up current file if exists
+    if (currentProgress?.filePath && fs.existsSync(currentProgress.filePath)) {
+        try {
+            fs.unlinkSync(currentProgress.filePath);
+            console.log(`🗑️  Cleaned up file on reset: ${currentProgress.filePath}`);
+        } catch (error) {
+            console.error(`⚠️  Error cleaning up file on reset:`, error);
+        }
+    }
+    
+    currentProgress = null;
+    res.json({ success: true, message: 'Automation state reset successfully' });
+});
+
+// Function to clean up old temporary files
+function cleanupOldFiles(): void {
+    const reportsDir = path.join(process.cwd(), 'reports');
+    if (!fs.existsSync(reportsDir)) return;
+
+    try {
+        const files = fs.readdirSync(reportsDir);
+        const now = Date.now();
+        const maxAge = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+        files.forEach(file => {
+            const filePath = path.join(reportsDir, file);
+            try {
+                const stats = fs.statSync(filePath);
+                if (now - stats.mtime.getTime() > maxAge) {
+                    fs.unlinkSync(filePath);
+                    console.log(`🗑️  Cleaned up old file: ${file}`);
+                }
+            } catch (error) {
+                console.error(`⚠️  Error checking file ${file}:`, error);
+            }
+        });
+    } catch (error) {
+        console.error('⚠️  Error during cleanup:', error);
+    }
+}
+
+// Clean up old files on startup and every hour
+cleanupOldFiles();
+setInterval(cleanupOldFiles, 60 * 60 * 1000); // Run every hour
 
 // Function to parse NIK data with multiple delimiters
 function parseNikData(nikData: string): string[] {
@@ -238,15 +314,26 @@ async function processAutomation(nikNumbers: string[], limit?: number): Promise<
             if (currentProgress) {
                 currentProgress.status = 'completed';
                 
+                console.log(`🎯 Automation result type: ${typeof result}`);
+                console.log(`🎯 Automation result: ${result}`);
+                
                 // If result is a file path, read it and create buffer for web download
                 if (typeof result === 'string') {
                     try {
-                        const fileBuffer = fs.readFileSync(result);
-                        currentProgress.reportBuffer = fileBuffer;
-                        currentProgress.filename = path.basename(result);
+                        if (fs.existsSync(result)) {
+                            const fileBuffer = fs.readFileSync(result);
+                            currentProgress.reportBuffer = fileBuffer;
+                            currentProgress.filename = path.basename(result);
+                            currentProgress.filePath = result; // Store file path for cleanup
+                            console.log(`📊 File read for web download: ${path.basename(result)}, size: ${fileBuffer.length} bytes`);
+                        } else {
+                            console.log(`❌ File not found: ${result}`);
+                        }
                     } catch (error) {
                         console.error('Error reading file for web download:', error);
                     }
+                } else {
+                    console.log('⚠️  No file path returned from automation');
                 }
             }
             
