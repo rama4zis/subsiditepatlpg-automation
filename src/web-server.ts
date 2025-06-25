@@ -46,7 +46,7 @@ app.get('/', (req: Request, res: Response) => {
 app.post('/api/process-nik', async (req: Request, res: Response) => {
     try {
         const { nikData, limiter } = req.body;
-        
+
         if (!nikData) {
             res.status(400).json({ error: 'NIK data is required' });
             return;
@@ -54,7 +54,7 @@ app.post('/api/process-nik', async (req: Request, res: Response) => {
 
         // Parse NIK data - split by various delimiters
         const nikNumbers = parseNikData(nikData);
-        
+
         if (nikNumbers.length === 0) {
             res.status(400).json({ error: 'No valid NIK numbers found' });
             return;
@@ -62,8 +62,8 @@ app.post('/api/process-nik', async (req: Request, res: Response) => {
 
         // Validate environment variables
         if (!process.env.EMAIL || !process.env.PASSWORD) {
-            res.status(500).json({ 
-                error: 'Missing environment variables. Please check your .env file.' 
+            res.status(500).json({
+                error: 'Missing environment variables. Please check your .env file.'
             });
             return;
         }
@@ -74,7 +74,7 @@ app.post('/api/process-nik', async (req: Request, res: Response) => {
         // Send immediate response that processing has started
         const startTime = new Date();
         const estimatedEndTime = new Date(startTime.getTime() + (Math.min(processLimit, nikNumbers.length) * 5000)); // 5 seconds per NIK
-        
+
         currentProgress = {
             total: nikNumbers.length,
             processed: 0,
@@ -86,8 +86,8 @@ app.post('/api/process-nik', async (req: Request, res: Response) => {
             successfulProcessed: 0
         };
 
-        res.json({ 
-            message: 'Processing started', 
+        res.json({
+            message: 'Processing started',
             nikCount: nikNumbers.length,
             nikNumbers: nikNumbers.slice(0, 5), // Show first 5 for preview
             totalCount: nikNumbers.length,
@@ -110,12 +110,12 @@ app.get('/api/status', (req: Request, res: Response) => {
         res.json({ status: 'No active processing' });
         return;
     }
-    
+
     const now = new Date();
     const elapsedMs = now.getTime() - currentProgress.startTime.getTime();
     const elapsedMinutes = Math.floor(elapsedMs / 60000);
     const elapsedSeconds = Math.floor((elapsedMs % 60000) / 1000);
-    
+
     let remainingTime = '';
     if (currentProgress.status === 'processing') {
         const remainingNiks = (currentProgress.limit || currentProgress.total) - (currentProgress.successfulProcessed || 0);
@@ -124,8 +124,8 @@ app.get('/api/status', (req: Request, res: Response) => {
         const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
         remainingTime = `${remainingMinutes}:${remainingSeconds.toString().padStart(2, '0')}`;
     }
-    
-    res.json({ 
+
+    res.json({
         total: currentProgress.total,
         processed: currentProgress.processed,
         current: currentProgress.current,
@@ -142,23 +142,23 @@ app.get('/api/status', (req: Request, res: Response) => {
 // API endpoint to download the generated report
 app.get('/api/download-report', async (req: Request, res: Response) => {
     console.log('📥 Download report requested...');
-    
+
     if (!currentProgress) {
         console.log('❌ No current progress found');
         res.status(404).json({ error: 'No report available' });
         return;
     }
-    
+
     console.log('📊 Current progress status:', currentProgress.status);
     console.log('📊 Has report buffer:', !!currentProgress.reportBuffer);
     console.log('📊 Has data:', !!currentProgress.data);
     console.log('📊 File path:', currentProgress.filePath);
-    
+
     try {
         let buffer: any;
         let filename: string;
         let filePath: string | null = null;
-        
+
         if (currentProgress.reportBuffer) {
             buffer = currentProgress.reportBuffer;
             filename = currentProgress.filename || 'subsidite-pat-lpg-report.xlsx';
@@ -176,13 +176,13 @@ app.get('/api/download-report', async (req: Request, res: Response) => {
             res.status(404).json({ error: 'No report data available' });
             return;
         }
-        
+
         console.log(`📥 Sending Excel download: ${filename}, buffer size: ${buffer?.length || 0} bytes`);
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Length', buffer.length);
         res.send(buffer);
-        
+
         // Clean up the physical file after successful download
         if (filePath && fs.existsSync(filePath)) {
             try {
@@ -192,7 +192,7 @@ app.get('/api/download-report', async (req: Request, res: Response) => {
                 console.error(`⚠️  Failed to delete temporary file ${filePath}:`, deleteError);
             }
         }
-        
+
         console.log(`✅ Excel file downloaded successfully: ${filename}`);
     } catch (error) {
         console.error('❌ Error generating download:', error);
@@ -211,7 +211,7 @@ app.post('/api/reset', (req: Request, res: Response) => {
             console.error(`⚠️  Error cleaning up file on reset:`, error);
         }
     }
-    
+
     currentProgress = null;
     res.json({ success: true, message: 'Automation state reset successfully' });
 });
@@ -251,7 +251,7 @@ setInterval(cleanupOldFiles, 60 * 60 * 1000); // Run every hour
 function parseNikData(nikData: string): string[] {
     // Split by enter, comma, space, and semicolon
     const delimiters = /[\n\r,;\s]+/;
-    
+
     return nikData
         .split(delimiters)
         .map(nik => nik.trim())
@@ -262,11 +262,11 @@ function parseNikData(nikData: string): string[] {
 // Function to run automation
 async function processAutomation(nikNumbers: string[], limit?: number): Promise<void> {
     console.log(`🚀 Starting automation for ${nikNumbers.length} NIK numbers with limit: ${limit || 'unlimited'}...`);
-    
+
     if (currentProgress) {
         currentProgress.status = 'processing';
     }
-    
+
     const browser: Browser = await puppeteer.launch({
         headless: true, // Use headless mode in Docker
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
@@ -274,21 +274,22 @@ async function processAutomation(nikNumbers: string[], limit?: number): Promise<
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            // '--single-process',
             '--disable-gpu',
+            '--no-first-run',
+            '--disable-extensions',
             '--disable-background-timer-throttling',
             '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding'
+            '--disable-renderer-backgrounding',
+            '--disable-features=TranslateUI',
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor'
         ]
     });
 
     try {
         const page: Page = await browser.newPage();
         await page.setViewport({ width: 1280, height: 800 });
-        
+
         const loginService = new LoginService(page);
         const loginUrl: string = 'https://subsiditepatlpg.mypertamina.id/merchant-login';
         const credentials = {
@@ -298,10 +299,10 @@ async function processAutomation(nikNumbers: string[], limit?: number): Promise<
 
         console.log('🔐 Attempting login...');
         const isLoggedIn: boolean = await loginService.login(credentials, loginUrl);
-        
+
         if (isLoggedIn) {
             console.log('✅ Login successful');
-            
+
             const inputDataService = new InputDataService(page);
             const result = await inputDataService.inputData(nikNumbers, (processed: number, current: string) => {
                 if (currentProgress) {
@@ -310,13 +311,13 @@ async function processAutomation(nikNumbers: string[], limit?: number): Promise<
                     console.log(`📊 Progress: ${processed}/${currentProgress.total} - Processing: ${current}`);
                 }
             }, limit);
-            
+
             if (currentProgress) {
                 currentProgress.status = 'completed';
-                
+
                 console.log(`🎯 Automation result type: ${typeof result}`);
                 console.log(`🎯 Automation result: ${result}`);
-                
+
                 // If result is a file path, read it and create buffer for web download
                 if (typeof result === 'string') {
                     try {
@@ -336,7 +337,7 @@ async function processAutomation(nikNumbers: string[], limit?: number): Promise<
                     console.log('⚠️  No file path returned from automation');
                 }
             }
-            
+
             console.log('🎉 Automation completed successfully!');
         } else {
             console.log('❌ Login failed');
@@ -344,7 +345,7 @@ async function processAutomation(nikNumbers: string[], limit?: number): Promise<
                 currentProgress.status = 'error';
             }
         }
-        
+
     } catch (error: unknown) {
         console.error('❌ Automation error:', error);
         if (currentProgress) {
@@ -362,10 +363,10 @@ app.listen(port, host, () => {
     console.log(`   Local:   http://localhost:${port}`);
     console.log(`   Network: http://${host}:${port}`);
     console.log(`📝 Open any of these URLs to input NIK data through web interface`);
-    
+
     // Try to get the actual network IP
     const networkInterfaces = os.networkInterfaces();
-    
+
     console.log(`\n🌍 Available network addresses:`);
     Object.keys(networkInterfaces).forEach(interfaceName => {
         const interfaces = networkInterfaces[interfaceName];

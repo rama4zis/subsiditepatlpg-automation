@@ -156,7 +156,8 @@ export class InputDataService {
                 await new Promise(resolve => setTimeout(resolve, 1000));
 
                 // Wait for the info pelanggan selector to appear
-                await this.page.waitForSelector('[class*="infoPelangganSubsidi"]', { timeout: 1000 });
+                // await this.page.waitForSelector('[class*="infoPelangganSubsidi"]', { timeout: 1000 });
+                // await this.page.$('[class*="infoPelangganSubsidi"]'); // Wait for the element to be present
 
                 // Extract data from the info pelanggan element
                 const dataPelanggan: string[] = await this.page.$eval('[class*="infoPelangganSubsidi"]', (element: any) => {
