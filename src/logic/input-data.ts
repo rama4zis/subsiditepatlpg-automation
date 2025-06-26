@@ -48,11 +48,12 @@ export class InputDataService {
                 
                 await this.page.type('input[id="mantine-r2"]', number, { delay: 50 });
                 await this.page.click('button[type="submit"]', { delay: 100 });
+                await new Promise(resolve => setTimeout(resolve, 1000)); // wait for popup to appear if any
 
                 // Check if "NIK pelanggan tidak terdaftar" error appears
                 try {
                     // Wait a bit for potential error to appear
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    // await new Promise(resolve => setTimeout(resolve, 1000));
 
                     // Check if error element exists without waiting
                     const errorElement = await this.page.$('div#mantine-r2-error');
@@ -97,7 +98,7 @@ export class InputDataService {
                 // Check if multiple choices dialog appears
                 try {
                     // Wait a bit for potential dialog to appear
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    // await new Promise(resolve => setTimeout(resolve, 1000));
 
                     const multipleChoicesElement = await this.page.$('div#mantine-r7-body');
                     if (multipleChoicesElement) {
@@ -121,17 +122,18 @@ export class InputDataService {
 
                 // if perbarui data pelanggan
                 try {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    // await new Promise(resolve => setTimeout(resolve, 1000));
 
-                    const perbaruiDataElement = await this.page.$('xpath///*[@id="mantine-rb-body"]/div/div[1]/button');
+                    const perbaruiDataElement = await this.page.$('[id*="mantine-rb-body"]');
 
                     // if innerText includes "Perbarui Data Pelanggan"
                     if (perbaruiDataElement && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('Perbarui Data Pelanggan'), perbaruiDataElement)) {
                         // If still can go to transaction
                         const lanjutkanTransaksiButton = await this.page.$('xpath///*[@id="mantine-rb-body"]/div/div[2]/button');
-                        if (lanjutkanTransaksiButton) {
+                        if (lanjutkanTransaksiButton && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('Lanjutkan Transaksi'), lanjutkanTransaksiButton)) {
                             console.log(`Lanjutkan Transaksi button found for NIK ${number}. Clicking...`);
                             await lanjutkanTransaksiButton.click({ delay: 100 });
+                            await this.page.waitForNavigation();
                         } else {
                             console.error(`Lanjutkan Transaksi button not found for NIK ${number}.`);
                             // push pelangganDone with error status
@@ -153,10 +155,10 @@ export class InputDataService {
 
                 }
 
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // await new Promise(resolve => setTimeout(resolve, 1000));
 
                 // Wait for the info pelanggan selector to appear
-                // await this.page.waitForSelector('[class*="infoPelangganSubsidi"]', { timeout: 1000 });
+                await this.page.waitForSelector('[class*="infoPelangganSubsidi"]');
                 // await this.page.$('[class*="infoPelangganSubsidi"]'); // Wait for the element to be present
 
                 // Extract data from the info pelanggan element
@@ -166,7 +168,7 @@ export class InputDataService {
 
                 console.log('Data Pelanggan:', dataPelanggan);
 
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // await new Promise(resolve => setTimeout(resolve, 1000));
                 try {
                     const alert = await this.page.$('xpath///*[@id="__next"]/div[1]/div/main/div/div/div/div/div/div/div[2]/div[3]/div/div/span');
 
