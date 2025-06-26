@@ -1,5 +1,7 @@
 import { Page } from 'puppeteer';
 import { ExcelExportService } from './excel-export';
+import fs from 'fs';
+import path from 'path';
 
 interface InputData {
     nik: string;
@@ -22,6 +24,7 @@ export class InputDataService {
             timestamp?: Date;
         }[] = [];
         try {
+            const startTime = Date.now();
             await this.page.waitForSelector('input[id="mantine-r2"]', { timeout: 5000 });
 
             if (await this.page.$('input[id="mantine-r2"]') === null) {
@@ -34,21 +37,32 @@ export class InputDataService {
             // Set default limit to the total number of NIKs if not specified
             const maxLimit = limit && limit > 0 ? limit : nik.length;
             let successfulProcessed = 0;
+            let normalWaitingTime;
+            if(nik.length > 10) {
+                // If more than 10 NIKs, set a longer waiting time
+                normalWaitingTime = 6500; // 6.5 seconds
+            } else {
+                normalWaitingTime = 0; // 0 seconds
+            }
 
             // For multiple NIK
             for (let i = 0; i < nik.length && successfulProcessed < maxLimit; i++) {
                 const number = nik[i];
-                
+
                 // Update progress
                 if (progressCallback) {
                     progressCallback(i, number);
                 }
-                
+
                 console.log(`Processing NIK ${i + 1}/${nik.length}: ${number} (Successful: ${successfulProcessed}/${maxLimit})`);
-                
-                await this.page.type('input[id="mantine-r2"]', number, { delay: 50 });
-                await this.page.click('button[type="submit"]', { delay: 100 });
-                await new Promise(resolve => setTimeout(resolve, 1000)); // wait for popup to appear if any
+
+                await new Promise(resolve => setTimeout(resolve, normalWaitingTime)); // wait for normal waiting time
+                await this.page.type('input[id="mantine-r2"]', number);
+                // click esc
+                await this.page.keyboard.press('Escape');
+
+                await this.page.click('button[type="submit"]');
+                await new Promise(resolve => setTimeout(resolve, 500)); // wait for popup to appear if any
 
                 // Check if "NIK pelanggan tidak terdaftar" error appears
                 try {
@@ -103,7 +117,7 @@ export class InputDataService {
                     const multipleChoicesElement = await this.page.$('div#mantine-r7-body');
                     if (multipleChoicesElement) {
                         console.log(`Multiple choices found for NIK ${number}. Selecting the first option.`);
-                        
+
                         const btnTransaction = await this.page.$('button[data-testid="btnContinueTrx"]');
                         if (btnTransaction) {
                             console.log(`Button to continue transaction found for NIK ${number}. Clicking...`);
@@ -134,6 +148,7 @@ export class InputDataService {
                             console.log(`Lanjutkan Transaksi button found for NIK ${number}. Clicking...`);
                             await lanjutkanTransaksiButton.click({ delay: 100 });
                             await this.page.waitForNavigation();
+                            await new Promise(resolve => setTimeout(resolve, 1000)); // wait for page to load
                         } else {
                             console.error(`Lanjutkan Transaksi button not found for NIK ${number}.`);
                             // push pelangganDone with error status
@@ -155,6 +170,35 @@ export class InputDataService {
 
                 }
 
+                // if get limit for too fast input
+                const limitErrorElement = await this.page.$('[class*="alertContainer__kIoif"]');
+                if (limitErrorElement && await this.page.evaluate((el: Element) => (el as HTMLElement).innerText.includes('Harap tunggu hingga'), limitErrorElement)) {
+
+                    // get seconds from innerText after "hingga", format like this "0:29"
+                    const limitText = await this.page.evaluate(el => (el as HTMLElement).innerText, limitErrorElement);
+                    const secondsMatch = limitText.match(/hingga (\d+):(\d+)/);
+                    if (secondsMatch) {
+                        const minutes = parseInt(secondsMatch[1], 10);
+                        const seconds = parseInt(secondsMatch[2], 10);
+                        const totalSeconds = minutes * 60 + seconds;
+                        console.log(`Input limit reached for NIK ${number}. Waiting for ${totalSeconds} seconds before retrying...`);
+                        const screenshotPath = path.join(process.cwd(), 'screenshots', `limit-error-${number}-${Date.now()}.png`) as `${string}.png`;
+                        await this.page.screenshot({ path: screenshotPath, fullPage: true });
+                        console.log(`Screenshot taken for input limit error: ${screenshotPath}`);
+                        await new Promise(resolve => setTimeout(resolve, totalSeconds * 1000)); // wait for the specified time
+                        // take screenshot
+                    }
+                    // console.log(`Waiting for 5 seconds due to input limit for NIK ${number}.`);
+
+                    // await new Promise(resolve => setTimeout(resolve, 5000)); // wait for a while before retrying
+                    // reload page 
+                    await this.page.reload({ waitUntil: 'load' });
+                    // retry the current NIK
+                    console.log(`Refreshed page for NIK ${number} due to input limit.`);
+                    i--; // Decrement i to retry the same NIK
+                    continue; // Skip to the next NIK
+                }
+
                 // await new Promise(resolve => setTimeout(resolve, 1000));
 
                 // Wait for the info pelanggan selector to appear
@@ -168,12 +212,13 @@ export class InputDataService {
 
                 console.log('Data Pelanggan:', dataPelanggan);
 
-                // await new Promise(resolve => setTimeout(resolve, 1000));
                 try {
-                    const alert = await this.page.$('xpath///*[@id="__next"]/div[1]/div/main/div/div/div/div/div/div/div[2]/div[3]/div/div/span');
+                    // const alert = await this.page.$('xpath///*[@id="__next"]/div[1]/div/main/div/div/div/div/div/div/div[2]/div[3]/div/div/span');
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    const alert2 = await this.page.$('[class*="mantine-Stack-root"]');
 
                     // if allert innerText includes "melebihi batas kewajaran"
-                    if (alert && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('melebihi batas kewajaran'), alert)) {
+                    if (alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('melebihi batas kewajaran'), alert2)) {
                         console.error(`NIK ${number} exceeds the reasonable limit. Please check the NIK.`);
                         // push to pelangganDone with error status
                         pelangganDone.push({
@@ -236,11 +281,10 @@ export class InputDataService {
                         // Tab and enter to confirm payment
                         const btnPay = await this.page.$('button[data-testid="btnPay"]');
                         if (btnPay) {
-                            // await btnPay.click({ delay: 100 });
                             await this.page.$eval('button[data-testid="btnPay"]', (el: any) => el.click());
                             console.log('Clicked payment button successfully.');
                             // Pause for 1 seconds to allow payment processing
-                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            await new Promise(resolve => setTimeout(resolve, 300));
 
                         } else {
                             console.error('Payment button not found after clicking Cek Pesanan. Please check the selector.');
@@ -269,11 +313,11 @@ export class InputDataService {
                             jenisPengguna: dataPelanggan[dataPelanggan.length - 2],
                             nik: number
                         });
-                        
+
                         // Increment successful counter
                         successfulProcessed++;
                         console.log(`✅ Successfully processed NIK ${number}. Count: ${successfulProcessed}/${maxLimit}`);
-                        
+
                         // Check if we've reached the limit
                         if (successfulProcessed >= maxLimit) {
                             console.log(`🎯 Reached the processing limit of ${maxLimit} successful NIKs. Stopping processing.`);
@@ -303,11 +347,11 @@ export class InputDataService {
                             jenisPengguna: dataPelanggan[dataPelanggan.length - 2],
                             nik: number
                         });
-                        
+
                         // Increment successful counter
                         successfulProcessed++;
                         console.log(`✅ Successfully processed NIK ${number}. Count: ${successfulProcessed}/${maxLimit}`);
-                        
+
                         // Check if we've reached the limit
                         if (successfulProcessed >= maxLimit) {
                             console.log(`🎯 Reached the processing limit of ${maxLimit} successful NIKs. Stopping processing.`);
@@ -319,6 +363,8 @@ export class InputDataService {
                 // go back to input field for the next NIK
                 await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
             }
+
+            console.log(`Input took ${Math.round((Date.now() - startTime) / 1000)} seconds`);
 
             console.log(`Inputted NIK: ${nik}`);
             console.log(`Processed ${pelangganDone.length} customers successfully`);
@@ -356,6 +402,39 @@ export class InputDataService {
 
         } catch (error) {
             console.error('Error inputting data:', error);
+
+            // Take screenshot and save HTML for debugging
+            try {
+                // Create screenshot directory if it doesn't exist
+                const screenshotDir = path.join(process.cwd(), 'screenshots');
+                if (!fs.existsSync(screenshotDir)) {
+                    fs.mkdirSync(screenshotDir, { recursive: true });
+                }
+
+                // Generate timestamp for unique filename
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                const screenshotPath = path.join(screenshotDir, `error-${timestamp}.png`) as `${string}.png`;
+                const htmlPath = path.join(screenshotDir, `error-${timestamp}.html`);
+
+                // Take screenshot
+                await this.page.screenshot({
+                    path: screenshotPath,
+                    fullPage: true
+                });
+
+                // Get and save HTML content
+                const htmlContent = await this.page.content();
+                fs.writeFileSync(htmlPath, htmlContent, 'utf8');
+
+                console.log(`📸 Error screenshot saved to: ${screenshotPath}`);
+                console.log(`📄 HTML content saved to: ${htmlPath}`);
+                console.log(`🌐 Current URL when error occurred: ${this.page.url()}`);
+                console.log(`📄 Page title when error occurred: ${await this.page.title()}`);
+
+            } catch (screenshotError) {
+                console.error('❌ Failed to take error screenshot or save HTML:', screenshotError);
+            }
+
             // export data Excel, till the last successful NIK
             const excelExporter = new ExcelExportService();
             const allData = pelangganDone.map(customer => ({
