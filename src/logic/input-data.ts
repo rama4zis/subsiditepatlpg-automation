@@ -40,7 +40,7 @@ export class InputDataService {
             let normalWaitingTime;
             if(nik.length > 10) {
                 // If more than 10 NIKs, set a longer waiting time
-                normalWaitingTime = 3500; // 3.5 seconds
+                normalWaitingTime = 3800; // 3.8 seconds
             } else {
                 normalWaitingTime = 0; // 0 seconds
             }
@@ -58,8 +58,6 @@ export class InputDataService {
 
                 await new Promise(resolve => setTimeout(resolve, normalWaitingTime)); // wait for normal waiting time
                 await this.page.type('input[id="mantine-r2"]', number);
-                // click esc
-                await this.page.keyboard.press('Escape', { delay: 100 });
 
                 const cekNik = await this.page.$('button[data-testid="btnCheckNik"]');
                 if (cekNik) {
@@ -71,9 +69,6 @@ export class InputDataService {
 
                 // Check if "NIK pelanggan tidak terdaftar" error appears
                 try {
-                    // Wait a bit for potential error to appear
-                    // await new Promise(resolve => setTimeout(resolve, 1000));
-
                     // Check if error element exists without waiting
                     const errorElement = await this.page.$('div#mantine-r2-error');
                     if (errorElement) {
@@ -116,9 +111,6 @@ export class InputDataService {
 
                 // Check if multiple choices dialog appears
                 try {
-                    // Wait a bit for potential dialog to appear
-                    // await new Promise(resolve => setTimeout(resolve, 1000));
-
                     const multipleChoicesElement = await this.page.$('div#mantine-r7-body');
                     if (multipleChoicesElement) {
                         console.log(`Multiple choices found for NIK ${number}. Selecting the first option.`);
@@ -141,8 +133,6 @@ export class InputDataService {
 
                 // if perbarui data pelanggan
                 try {
-                    // await new Promise(resolve => setTimeout(resolve, 1000));
-
                     const perbaruiDataElement = await this.page.$('[id*="mantine-rb-body"]');
 
                     // if innerText includes "Perbarui Data Pelanggan"
@@ -193,9 +183,7 @@ export class InputDataService {
                         await new Promise(resolve => setTimeout(resolve, totalSeconds * 1000)); // wait for the specified time
                         // take screenshot
                     }
-                    // console.log(`Waiting for 5 seconds due to input limit for NIK ${number}.`);
-
-                    // await new Promise(resolve => setTimeout(resolve, 5000)); // wait for a while before retrying
+                    
                     // reload page 
                     await this.page.reload({ waitUntil: 'load' });
                     // retry the current NIK
@@ -203,12 +191,8 @@ export class InputDataService {
                     i--; // Decrement i to retry the same NIK
                     continue; // Skip to the next NIK
                 }
-
-                // await new Promise(resolve => setTimeout(resolve, 1000));
-
                 // Wait for the info pelanggan selector to appear
                 await this.page.waitForSelector('[class*="infoPelangganSubsidi"]');
-                // await this.page.$('[class*="infoPelangganSubsidi"]'); // Wait for the element to be present
 
                 // Extract data from the info pelanggan element
                 const dataPelanggan: string[] = await this.page.$eval('[class*="infoPelangganSubsidi"]', (element: any) => {
@@ -308,9 +292,7 @@ export class InputDataService {
                             await this.page.reload({ waitUntil: 'load' });
                             continue;
                         }
-                        // await this.page.keyboard.press('Tab');
-                        // await this.page.keyboard.press('Enter');
-
+                       
                         // Push to pelangganDone array
                         pelangganDone.push({
                             name: dataPelanggan[1],
