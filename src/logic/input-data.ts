@@ -61,7 +61,12 @@ export class InputDataService {
                 // click esc
                 await this.page.keyboard.press('Escape', { delay: 100 });
 
-                await this.page.click('button[data-testid="btnCheckNik"]');
+                const cekNik = await this.page.$('button[data-testid="btnCheckNik"]');
+                if (cekNik) {
+                    await this.page.$eval('button[data-testid="btnCheckNik"]', (el: any) => el.click());
+                    console.log(`Clicked "Cek NIK" button for NIK ${number}.`);
+                }
+
                 await new Promise(resolve => setTimeout(resolve, 300)); // wait for popup to appear if any
 
                 // Check if "NIK pelanggan tidak terdaftar" error appears
