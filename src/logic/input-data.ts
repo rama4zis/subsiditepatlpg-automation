@@ -40,7 +40,7 @@ export class InputDataService {
             let normalWaitingTime;
             if(nik.length > 10) {
                 // If more than 10 NIKs, set a longer waiting time
-                normalWaitingTime = 6500; // 6.5 seconds
+                normalWaitingTime = 3500; // 3.5 seconds
             } else {
                 normalWaitingTime = 0; // 0 seconds
             }
