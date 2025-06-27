@@ -59,10 +59,10 @@ export class InputDataService {
                 await new Promise(resolve => setTimeout(resolve, normalWaitingTime)); // wait for normal waiting time
                 await this.page.type('input[id="mantine-r2"]', number);
                 // click esc
-                await this.page.keyboard.press('Escape');
+                await this.page.keyboard.press('Escape', { delay: 100 });
 
-                await this.page.click('button[type="submit"]');
-                await new Promise(resolve => setTimeout(resolve, 500)); // wait for popup to appear if any
+                await this.page.click('button[data-testid="btnCheckNik"]');
+                await new Promise(resolve => setTimeout(resolve, 300)); // wait for popup to appear if any
 
                 // Check if "NIK pelanggan tidak terdaftar" error appears
                 try {
