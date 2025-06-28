@@ -70,9 +70,21 @@ document.getElementById('nikForm').addEventListener('submit', async function (e)
 
     const nikData = document.getElementById('nikData').value;
     const limiter = document.getElementById('limiter').value;
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
 
     if (!nikData.trim()) {
         showStatus('Please enter NIK data', 'error');
+        return;
+    }
+
+    if (!username.trim()) {
+        showStatus('Please enter your username/email', 'error');
+        return;
+    }
+
+    if (!password.trim()) {
+        showStatus('Please enter your password', 'error');
         return;
     }
 
@@ -94,7 +106,9 @@ document.getElementById('nikForm').addEventListener('submit', async function (e)
             },
             body: JSON.stringify({ 
                 nikData,
-                limiter: limiter ? parseInt(limiter) : null
+                limiter: limiter ? parseInt(limiter) : null,
+                username: username.trim(),
+                password: password.trim()
             })
         });
 
@@ -282,6 +296,8 @@ async function resetAutomation() {
             document.getElementById('resetBtn').style.display = 'none';
             document.getElementById('nikData').value = '';
             document.getElementById('limiter').value = '';
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
             
             showStatus('✅ Automation reset successfully!', 'success');
             setTimeout(() => hideStatus(), 3000);

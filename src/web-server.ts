@@ -45,10 +45,15 @@ app.get('/', (req: Request, res: Response) => {
 // API endpoint to process NIK data
 app.post('/api/process-nik', async (req: Request, res: Response) => {
     try {
-        const { nikData, limiter } = req.body;
+        const { nikData, limiter, username, password } = req.body;
 
         if (!nikData) {
             res.status(400).json({ error: 'NIK data is required' });
+            return;
+        }
+
+        if (!username || !password) {
+            res.status(400).json({ error: 'Username and password are required' });
             return;
         }
 
@@ -57,14 +62,6 @@ app.post('/api/process-nik', async (req: Request, res: Response) => {
 
         if (nikNumbers.length === 0) {
             res.status(400).json({ error: 'No valid NIK numbers found' });
-            return;
-        }
-
-        // Validate environment variables
-        if (!process.env.EMAIL || !process.env.PASSWORD) {
-            res.status(500).json({
-                error: 'Missing environment variables. Please check your .env file.'
-            });
             return;
         }
 
@@ -96,7 +93,7 @@ app.post('/api/process-nik', async (req: Request, res: Response) => {
         });
 
         // Start automation in background
-        processAutomation(nikNumbers, processLimit).catch(console.error);
+        processAutomation(nikNumbers, processLimit, { username, password }).catch(console.error);
 
     } catch (error) {
         console.error('Error:', error);
@@ -260,7 +257,7 @@ function parseNikData(nikData: string): string[] {
 }
 
 // Function to run automation
-async function processAutomation(nikNumbers: string[], limit?: number): Promise<void> {
+async function processAutomation(nikNumbers: string[], limit?: number, credentials?: { username: string; password: string }): Promise<void> {
     console.log(`🚀 Starting automation for ${nikNumbers.length} NIK numbers with limit: ${limit || 'unlimited'}...`);
 
     if (currentProgress) {
@@ -292,16 +289,18 @@ async function processAutomation(nikNumbers: string[], limit?: number): Promise<
 
         const loginService = new LoginService(page);
         const loginUrl: string = 'https://subsiditepatlpg.mypertamina.id/merchant-login';
-        const credentials = {
+        
+        // Use provided credentials or fall back to environment variables
+        const loginCredentials = credentials || {
             username: process.env.EMAIL || '',
             password: process.env.PASSWORD || ''
         };
 
         console.log('🔐 Attempting login...');
-        const isLoggedIn: boolean = await loginService.login(credentials, loginUrl);
+        const isLoggedIn: boolean = await loginService.login(loginCredentials, loginUrl);
 
         if (isLoggedIn) {
-            console.log('✅ Login successful');
+            console.log(`✅ Login successful for ${loginCredentials.username}`);
 
             const inputDataService = new InputDataService(page);
             const result = await inputDataService.inputData(nikNumbers, (processed: number, current: string) => {

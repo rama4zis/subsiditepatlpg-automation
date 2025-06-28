@@ -6,15 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Subsidi Tepat LPG - NIK Data Input</title>
     <link rel="stylesheet" href="style.css">
-    <style>
-        #limiter {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-    </style>
 </head>
 
 <body>
@@ -26,6 +17,16 @@
 
         <form id="nikForm">
             <div class="form-group">
+                <label for="username">Email/Username</label>
+                <div class="input-info">
+                    <strong>🔐 Login Credentials:</strong>
+                    <p>Enter your Subsidi Tepat LPG merchant account credentials.</p>
+                    <p><strong>⚠️ Security Note:</strong> Credentials are used only for this session and are not stored.</p>
+                </div>
+                <input type="email" id="username" name="username" placeholder="Enter your email/username" required>
+
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter your password" required>
 
                 <label for="limiter">Limit</label>
                 <div class="input-info">
@@ -57,6 +58,9 @@
                 </button>
                 <button type="submit" id="submitBtn" class="btn-primary">
                     🚀 Start Automation
+                </button>
+                <button type="button" id="resetBtn" class="btn-danger" style="display: none;" onclick="resetAutomation()">
+                    🔄 Reset
                 </button>
             </div>
         </form>
