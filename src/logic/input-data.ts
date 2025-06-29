@@ -14,6 +14,33 @@ export class InputDataService {
         this.page = page;
     }
 
+    // Helper function to push pelanggan data to the done array
+    private async pushPelangganDone(
+        pelangganDone: any[], 
+        nik: string, 
+        status: 'Berhasil' | 'Gagal',
+        name?: string | null,
+        jenisPengguna?: string | null,
+        error?: string
+    ): Promise<void> {
+        pelangganDone.push({
+            name: name || null,
+            status: status,
+            jenisPengguna: jenisPengguna || null,
+            nik: nik,
+            error: error || undefined,
+            timestamp: new Date()
+        });
+        
+        if (status === 'Gagal') {
+            console.error(`❌ Failed to process NIK ${nik}: ${error || 'Unknown error'}`);
+            // give waiting time 2 seconds
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+            console.log(`✅ Successfully processed NIK ${nik}`);
+        }
+    }
+
     async inputData(nik: string[], progressCallback?: (processed: number, current: string) => void, limit?: number): Promise<string | null> {
         let pelangganDone: {
             name: string | null;
@@ -40,7 +67,7 @@ export class InputDataService {
             let normalWaitingTime;
             if(nik.length > 10) {
                 // If more than 10 NIKs, set a longer waiting time
-                normalWaitingTime = 3800; // 3.8 seconds
+                normalWaitingTime = 4000; // 4 seconds
             } else {
                 normalWaitingTime = 0; // 0 seconds
             }
@@ -76,14 +103,7 @@ export class InputDataService {
                         console.error(`NIK ${number} not found or invalid. Please check the NIK.`);
 
                         // Add to pelanggan done with error
-                        pelangganDone.push({
-                            name: null,
-                            status: "Gagal",
-                            jenisPengguna: null,
-                            nik: number,
-                            error: errorMessage,
-                            timestamp: new Date()
-                        });
+                        this.pushPelangganDone(pelangganDone, number, 'Gagal', null, null, errorMessage);
 
                         // refresh page
                         await this.page.reload({ waitUntil: 'load' });
@@ -95,14 +115,7 @@ export class InputDataService {
                     console.error(`Error while checking NIK ${number}:`, error);
 
                     // push to pelangganDone with error status
-                    pelangganDone.push({
-                        name: null,
-                        status: "Gagal",
-                        jenisPengguna: null,
-                        nik: number,
-                        error: `Error while processing: ${error}`,
-                        timestamp: new Date()
-                    });
+                    this.pushPelangganDone(pelangganDone, number, 'Gagal', null, null, `Error while processing: ${error}`);
 
                     // refresh page
                     await this.page.reload({ waitUntil: 'load' });
@@ -147,12 +160,7 @@ export class InputDataService {
                         } else {
                             console.error(`Lanjutkan Transaksi button not found for NIK ${number}.`);
                             // push pelangganDone with error status
-                            pelangganDone.push({
-                                name: null,
-                                status: "Gagal",
-                                jenisPengguna: null,
-                                nik: number
-                            });
+                            this.pushPelangganDone(pelangganDone, number, 'Gagal');
                             // reload 
                             await this.page.reload({ waitUntil: 'load' });
                             console.error(`Perbarui Data Pelanggan found for NIK ${number}. Please update the data manually.`);
@@ -198,6 +206,8 @@ export class InputDataService {
                 const dataPelanggan: string[] = await this.page.$eval('[class*="infoPelangganSubsidi"]', (element: any) => {
                     return element.innerText.split('\n') || [];
                 });
+                const namaPelanggan = dataPelanggan[1] || null;
+                const jenisPengguna = dataPelanggan[dataPelanggan.length - 2]
 
                 console.log('Data Pelanggan:', dataPelanggan);
 
@@ -210,14 +220,7 @@ export class InputDataService {
                     if (alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('melebihi batas kewajaran'), alert2)) {
                         console.error(`NIK ${number} exceeds the reasonable limit. Please check the NIK.`);
                         // push to pelangganDone with error status
-                        pelangganDone.push({
-                            name: null,
-                            status: "Gagal",
-                            jenisPengguna: null,
-                            nik: number,
-                            error: `NIK exceeds the reasonable limit`,
-                            timestamp: new Date()
-                        });
+                        this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `NIK exceeds the reasonable limit`);
                         // refresh page
                         await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
                         console.log(`Refreshed page for NIK ${number}.`);
@@ -234,14 +237,7 @@ export class InputDataService {
                 if (checkStock && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('stok tabung yang dapat dijual kosong'), checkStock)) {
                     console.error(`NIK ${number} cannot proceed due to empty stock. Please check the stock.`);
                     // push to pelangganDone with error status
-                    pelangganDone.push({
-                        name: dataPelanggan[1] || null,
-                        status: "Gagal",
-                        jenisPengguna: null,
-                        nik: number,
-                        error: `Cannot proceed due to empty stock`,
-                        timestamp: new Date()
-                    });
+                    this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `Cannot proceed due to empty stock`);
                     // refresh page
                     await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
                     console.log(`Refreshed page for NIK ${number}.`);
@@ -279,14 +275,7 @@ export class InputDataService {
                             console.error('Payment button not found after clicking Cek Pesanan. Please check the selector.');
 
                             // push to pelangganDone with error status
-                            pelangganDone.push({
-                                name: dataPelanggan[1],
-                                status: "Gagal",
-                                jenisPengguna: dataPelanggan[dataPelanggan.length - 2],
-                                nik: number,
-                                error: 'Payment button not found after clicking Cek Pesanan',
-                                timestamp: new Date()
-                            });
+                            this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, 'Payment button not found after clicking Cek Pesanan');
 
                             // reload page and continue to next NIK
                             await this.page.reload({ waitUntil: 'load' });
@@ -294,12 +283,7 @@ export class InputDataService {
                         }
                        
                         // Push to pelangganDone array
-                        pelangganDone.push({
-                            name: dataPelanggan[1],
-                            status: "Berhasil",
-                            jenisPengguna: dataPelanggan[dataPelanggan.length - 2],
-                            nik: number
-                        });
+                        this.pushPelangganDone(pelangganDone, number, 'Berhasil', namaPelanggan, jenisPengguna);
 
                         // Increment successful counter
                         successfulProcessed++;
@@ -328,12 +312,7 @@ export class InputDataService {
                         await this.page.keyboard.press('Tab');
                         await this.page.keyboard.press('Enter');
                         // Push to pelangganDone array
-                        pelangganDone.push({
-                            name: dataPelanggan[1],
-                            status: "Berhasil",
-                            jenisPengguna: dataPelanggan[dataPelanggan.length - 2],
-                            nik: number
-                        });
+                        this.pushPelangganDone(pelangganDone, number, 'Berhasil', namaPelanggan, jenisPengguna);
 
                         // Increment successful counter
                         successfulProcessed++;
