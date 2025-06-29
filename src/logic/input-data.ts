@@ -34,8 +34,7 @@ export class InputDataService {
         
         if (status === 'Gagal') {
             console.error(`❌ Failed to process NIK ${nik}: ${error || 'Unknown error'}`);
-            // give waiting time 2 seconds
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise(resolve => setTimeout(resolve, 2000)); // wait for 2 seconds before next log
         } else {
             console.log(`✅ Successfully processed NIK ${nik}`);
         }
@@ -67,7 +66,7 @@ export class InputDataService {
             let normalWaitingTime;
             if(nik.length > 10) {
                 // If more than 10 NIKs, set a longer waiting time
-                normalWaitingTime = 4000; // 4 seconds
+                normalWaitingTime = 3000; // 3 seconds
             } else {
                 normalWaitingTime = 0; // 0 seconds
             }
@@ -103,7 +102,7 @@ export class InputDataService {
                         console.error(`NIK ${number} not found or invalid. Please check the NIK.`);
 
                         // Add to pelanggan done with error
-                        this.pushPelangganDone(pelangganDone, number, 'Gagal', null, null, errorMessage);
+                        await this.pushPelangganDone(pelangganDone, number, 'Gagal', null, null, errorMessage);
 
                         // refresh page
                         await this.page.reload({ waitUntil: 'load' });
@@ -115,7 +114,7 @@ export class InputDataService {
                     console.error(`Error while checking NIK ${number}:`, error);
 
                     // push to pelangganDone with error status
-                    this.pushPelangganDone(pelangganDone, number, 'Gagal', null, null, `Error while processing: ${error}`);
+                    await this.pushPelangganDone(pelangganDone, number, 'Gagal', null, null, `Error while processing: ${error}`);
 
                     // refresh page
                     await this.page.reload({ waitUntil: 'load' });
@@ -160,7 +159,7 @@ export class InputDataService {
                         } else {
                             console.error(`Lanjutkan Transaksi button not found for NIK ${number}.`);
                             // push pelangganDone with error status
-                            this.pushPelangganDone(pelangganDone, number, 'Gagal');
+                            await this.pushPelangganDone(pelangganDone, number, 'Gagal');
                             // reload 
                             await this.page.reload({ waitUntil: 'load' });
                             console.error(`Perbarui Data Pelanggan found for NIK ${number}. Please update the data manually.`);
@@ -220,10 +219,10 @@ export class InputDataService {
                     if (alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('melebihi batas kewajaran'), alert2)) {
                         console.error(`NIK ${number} exceeds the reasonable limit. Please check the NIK.`);
                         // push to pelangganDone with error status
-                        this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `NIK exceeds the reasonable limit`);
+                        await this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `NIK exceeds the reasonable limit`);
                         // refresh page
                         await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
-                        console.log(`Refreshed page for NIK ${number}.`);
+                        console.log(`Refreshed page to input next NIK.`);
                         continue; // Skip to the next NIK
                     } else {
                         console.log(`NIK ${number} is within the reasonable limit, proceeding...`);
@@ -237,7 +236,7 @@ export class InputDataService {
                 if (checkStock && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('stok tabung yang dapat dijual kosong'), checkStock)) {
                     console.error(`NIK ${number} cannot proceed due to empty stock. Please check the stock.`);
                     // push to pelangganDone with error status
-                    this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `Cannot proceed due to empty stock`);
+                    await this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `Cannot proceed due to empty stock`);
                     // refresh page
                     await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
                     console.log(`Refreshed page for NIK ${number}.`);
@@ -273,9 +272,10 @@ export class InputDataService {
 
                         } else {
                             console.error('Payment button not found after clicking Cek Pesanan. Please check the selector.');
-
+                            // wait 2 seconds
+                            await new Promise(resolve => setTimeout(resolve, 2000));
                             // push to pelangganDone with error status
-                            this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, 'Payment button not found after clicking Cek Pesanan');
+                            await this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, 'Payment button not found after clicking Cek Pesanan');
 
                             // reload page and continue to next NIK
                             await this.page.reload({ waitUntil: 'load' });
@@ -283,7 +283,7 @@ export class InputDataService {
                         }
                        
                         // Push to pelangganDone array
-                        this.pushPelangganDone(pelangganDone, number, 'Berhasil', namaPelanggan, jenisPengguna);
+                        await this.pushPelangganDone(pelangganDone, number, 'Berhasil', namaPelanggan, jenisPengguna);
 
                         // Increment successful counter
                         successfulProcessed++;
@@ -312,7 +312,7 @@ export class InputDataService {
                         await this.page.keyboard.press('Tab');
                         await this.page.keyboard.press('Enter');
                         // Push to pelangganDone array
-                        this.pushPelangganDone(pelangganDone, number, 'Berhasil', namaPelanggan, jenisPengguna);
+                        await this.pushPelangganDone(pelangganDone, number, 'Berhasil', namaPelanggan, jenisPengguna);
 
                         // Increment successful counter
                         successfulProcessed++;
