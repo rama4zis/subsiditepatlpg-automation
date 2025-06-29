@@ -263,17 +263,15 @@ export class InputDataService {
                     } else {
                         console.log('Payment button found, proceeding with payment.');
                         // Tab and enter to confirm payment
+                        // wait 2 seconds
+                        await new Promise(resolve => setTimeout(resolve, 2000));
                         const btnPay = await this.page.$('button[data-testid="btnPay"]');
                         if (btnPay) {
                             await this.page.$eval('button[data-testid="btnPay"]', (el: any) => el.click());
                             console.log('Clicked payment button successfully.');
-                            // Pause for 1 seconds to allow payment processing
-                            await new Promise(resolve => setTimeout(resolve, 300));
 
                         } else {
                             console.error('Payment button not found after clicking Cek Pesanan. Please check the selector.');
-                            // wait 2 seconds
-                            await new Promise(resolve => setTimeout(resolve, 2000));
                             // push to pelangganDone with error status
                             await this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, 'Payment button not found after clicking Cek Pesanan');
 
