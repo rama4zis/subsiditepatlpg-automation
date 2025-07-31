@@ -261,8 +261,35 @@ export class InputDataService {
                 const cekPesananButton = await this.page.$('button[data-testid="btnCheckOrder"]');
 
                 if(cekPesananButton){
-                    // waitforselector 
-                    await this.page.waitForSelector('button[data-testid="actionIcon2"]', { timeout: 8000 });
+                    // waitforselector
+                    // try 2 times 
+                    let errorCount = 0;
+                    for (let attempt = 0; attempt < 2; attempt++) {
+                        try {
+                            await this.page.waitForSelector('button[data-testid="actionIcon2"]', { timeout: 5000 });
+                            break; // Exit loop if successful
+                        } catch (error) {
+                            console.error(`Attempt ${attempt + 1}: Add button not found, retrying...`);
+                            if (attempt === 1) {
+                                console.error(`Add button still not found after 2 attempts for NIK ${number}.`);
+                                // push to pelangganDone with error status
+                                await this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `Too long waiting for Add button`);
+                                // continue to next NIK
+                                errorCount++;
+                            } else {
+                                // reload 
+                                await this.page.reload({ waitUntil: 'load' });
+                                console.log(`Reloaded page for NIK ${number}, retrying...`);
+                            }
+                        }
+                    }
+
+                    if (errorCount > 0) {
+                        console.log(`Add button not found for NIK ${number} after retries. Continuing to next NIK.`);
+                        continue; // Skip to the next NIK
+                    }
+                    
+                    console.log(`Add button found for NIK ${number}, proceeding with payment.`);
                 }
                 const addBButton = await this.page.$('button[data-testid="actionIcon2"]');
                 if (addBButton && dataPelanggan.some((item: string) => item.includes('Rumah Tangga'))) {
