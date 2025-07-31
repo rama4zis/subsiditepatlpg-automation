@@ -216,7 +216,7 @@ export class InputDataService {
                     const alert2 = await this.page.$('[class*="mantine-Stack-root"]');
 
                     // if allert innerText includes "melebihi batas kewajaran"
-                    if (alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('melebihi batas kewajaran'), alert2)) {
+                    if ((alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('melebihi batas kewajaran'), alert2)) || (alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('Tidak dapat transaksi'), alert2))) {
                         console.error(`NIK ${number} exceeds the reasonable limit. Please check the NIK.`);
                         // push to pelangganDone with error status
                         await this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `NIK exceeds the reasonable limit`);
@@ -244,9 +244,11 @@ export class InputDataService {
                     break;
                 }
 
+                // wait 2 seconds
+                await new Promise(resolve => setTimeout(resolve, 2000));
                 // Check if jenis pengguna is Rumah Tangga
-                await this.page.waitForSelector('button[data-testid="actionIcon2"]', { timeout: 1000 });
-                if (dataPelanggan.some((item: string) => item.includes('Rumah Tangga'))) {
+                const addBButton = await this.page.$('button[data-testid="actionIcon2"]');
+                if (addBButton && dataPelanggan.some((item: string) => item.includes('Rumah Tangga'))) {
                     console.log(`Jenis Pengguna: ${dataPelanggan[dataPelanggan.length - 2]}`);
                     await this.page.click('button[data-testid="actionIcon2"]', { delay: 100 });
 
@@ -263,8 +265,6 @@ export class InputDataService {
                     } else {
                         console.log('Payment button found, proceeding with payment.');
                         // Tab and enter to confirm payment
-                        // wait 2 seconds
-                        await new Promise(resolve => setTimeout(resolve, 2000));
                         const btnPay = await this.page.$('button[data-testid="btnPay"]');
                         if (btnPay) {
                             await this.page.$eval('button[data-testid="btnPay"]', (el: any) => el.click());
@@ -293,7 +293,7 @@ export class InputDataService {
                             break;
                         }
                     }
-                } else {
+                } else if(addBButton) {
                     console.log(`Jenis Pengguna: ${dataPelanggan[dataPelanggan.length - 2]}`);
                     for (let i = 1; i <= 3; i++) { // Click the button 3 times
                         await this.page.click('button[data-testid="actionIcon2"]', { delay: 100 });
