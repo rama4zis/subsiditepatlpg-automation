@@ -216,10 +216,19 @@ export class InputDataService {
                     const alert2 = await this.page.$('[class*="mantine-Stack-root"]');
 
                     // if allert innerText includes "melebihi batas kewajaran"
-                    if ((alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('melebihi batas kewajaran'), alert2)) || (alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('Tidak dapat transaksi'), alert2))) {
+                    if (alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('melebihi batas kewajaran'), alert2)) {
                         console.error(`NIK ${number} exceeds the reasonable limit. Please check the NIK.`);
                         // push to pelangganDone with error status
                         await this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `NIK exceeds the reasonable limit`);
+                        // refresh page
+                        await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
+                        console.log(`Refreshed page to input next NIK.`);
+                        continue; // Skip to the next NIK
+                    } else if(alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('Tidak dapat transaksi'), alert2)) {
+                        console.error(`KK ${number} exceeds the reasonable limit. Please check the NIK.`);
+                        // push to pelangganDone with error status
+                        // Tidak dapat transaksi karena telah melebihi batas kewajaran pembelian LPG 3 kg bulan ini untuk NIK yang terdaftar pada nomor KK yang sama.
+                        await this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `KK exceeds the reasonable limit`);
                         // refresh page
                         await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
                         console.log(`Refreshed page to input next NIK.`);
