@@ -210,8 +210,10 @@ export class InputDataService {
 
                 console.log('Data Pelanggan:', dataPelanggan);
 
+                // wait 2 seconds
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
                 try {
-                    // const alert = await this.page.$('xpath///*[@id="__next"]/div[1]/div/main/div/div/div/div/div/div/div[2]/div[3]/div/div/span');
                     await new Promise(resolve => setTimeout(resolve, 500));
                     const alert2 = await this.page.$('[class*="mantine-Stack-root"]');
 
@@ -253,8 +255,6 @@ export class InputDataService {
                     break;
                 }
 
-                // wait 2 seconds
-                await new Promise(resolve => setTimeout(resolve, 2000));
                 // Check if jenis pengguna is Rumah Tangga
                 const addBButton = await this.page.$('button[data-testid="actionIcon2"]');
                 if (addBButton && dataPelanggan.some((item: string) => item.includes('Rumah Tangga'))) {
