@@ -253,9 +253,17 @@ export class InputDataService {
                     console.log(`Refreshed page for NIK ${number}.`);
                     // End the program, break the loop
                     break;
+                } else {
+                    console.log(`Stok is still available, proceeding with NIK ${number}.`);
                 }
 
                 // Check if jenis pengguna is Rumah Tangga
+                const cekPesananButton = await this.page.$('button[data-testid="btnCheckOrder"]');
+
+                if(cekPesananButton){
+                    // waitforselector 
+                    await this.page.waitForSelector('button[data-testid="actionIcon2"]', { timeout: 8000 });
+                }
                 const addBButton = await this.page.$('button[data-testid="actionIcon2"]');
                 if (addBButton && dataPelanggan.some((item: string) => item.includes('Rumah Tangga'))) {
                     console.log(`Jenis Pengguna: ${dataPelanggan[dataPelanggan.length - 2]}`);
@@ -331,7 +339,7 @@ export class InputDataService {
                             break;
                         }
                     }
-                }
+                } 
 
                 // go back to input field for the next NIK
                 await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
