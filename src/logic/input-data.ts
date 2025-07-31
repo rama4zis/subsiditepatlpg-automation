@@ -122,7 +122,8 @@ export class InputDataService {
                     await this.page.reload({ waitUntil: 'load' });
                     continue; // Skip to the next NIK
                 }
-
+                // await 1 second
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 // Check if multiple choices dialog appears
                 try {
                     const multipleChoicesElement = await this.page.$('[role="dialog"]');
