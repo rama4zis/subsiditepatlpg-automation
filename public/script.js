@@ -1,4 +1,5 @@
 let totalData;
+let currentSessionId = null; // Store current session ID
 
 function parseNikData(nikData) {
     // Split by enter, comma, space, and semicolon
@@ -22,6 +23,25 @@ function showStatus(message, type) {
 
 function hideStatus() {
     document.getElementById('status').style.display = 'none';
+}
+
+function showSessionInfo(sessionId, status) {
+    const sessionInfo = document.getElementById('sessionInfo');
+    const sessionIdSpan = document.getElementById('sessionId');
+    const sessionStatusSpan = document.getElementById('sessionStatus');
+    
+    if (sessionInfo && sessionIdSpan && sessionStatusSpan) {
+        sessionIdSpan.textContent = sessionId;
+        sessionStatusSpan.textContent = status;
+        sessionInfo.style.display = 'block';
+    }
+}
+
+function hideSessionInfo() {
+    const sessionInfo = document.getElementById('sessionInfo');
+    if (sessionInfo) {
+        sessionInfo.style.display = 'none';
+    }
 }
 
 function showLoading() {
@@ -115,6 +135,13 @@ document.getElementById('nikForm').addEventListener('submit', async function (e)
         const result = await response.json();
 
         if (response.ok) {
+            // Store the session ID for this user's session
+            currentSessionId = result.sessionId;
+            console.log(`📋 Session ID: ${currentSessionId}`);
+            
+            // Show session info
+            showSessionInfo(currentSessionId, 'Processing');
+            
             const limitText = result.limit && result.limit < result.totalCount ? ` (Limited to ${result.limit} successful entries)` : '';
             showStatus(
                 `✅ Processing started! ${result.nikCount} NIK numbers queued for automation${limitText}. Estimated time: ${result.estimatedTimeMinutes || 'calculating'} minutes.`,
@@ -156,6 +183,11 @@ function updateProgress(progressData) {
     const loadingText = document.getElementById('loadingText');
     const progressFill = document.getElementById('progressFill');
     
+    // Update session status
+    if (currentSessionId) {
+        showSessionInfo(currentSessionId, progressData.status || 'Unknown');
+    }
+    
     if (progressData.status === 'processing') {
         if (progressFill) progressFill.style.width = `${progressData.progress}%`;
         const limitInfo = progressData.limit ? ` (Limit: ${progressData.successfulProcessed || 0}/${progressData.limit})` : '';
@@ -177,9 +209,15 @@ function updateProgress(progressData) {
 }
 
 async function downloadReport() {
+    if (!currentSessionId) {
+        showStatus('❌ No session ID available for download', 'error');
+        return;
+    }
+
     try {
-        console.log('🔄 Starting download...');
-        const response = await fetch('/api/download-report');
+        console.log(`🔄 Starting download for session ${currentSessionId}...`);
+        // Use session-specific endpoint
+        const response = await fetch(`/api/download-report/${currentSessionId}`);
         
         console.log('📥 Download response status:', response.status);
         
@@ -226,9 +264,22 @@ async function downloadReport() {
 }
 
 async function pollProgress() {
+    if (!currentSessionId) {
+        console.log('❌ No session ID available for polling');
+        return;
+    }
+
     try {
-        const response = await fetch('/api/status');
+        // Use session-specific endpoint
+        const response = await fetch(`/api/status/${currentSessionId}`);
         const progressData = await response.json();
+
+        if (progressData.status === 'Session not found or expired') {
+            showStatus('❌ Session expired or not found', 'error');
+            hideLoading();
+            currentSessionId = null;
+            return;
+        }
         
         if (progressData.status && progressData.status !== 'No active processing') {
             updateProgress(progressData);
@@ -281,7 +332,12 @@ function showResetButton() {
 // Function to reset automation
 async function resetAutomation() {
     try {
-        const response = await fetch('/api/reset', {
+        let resetUrl = '/api/reset';
+        if (currentSessionId) {
+            resetUrl = `/api/reset/${currentSessionId}`;
+        }
+
+        const response = await fetch(resetUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -292,12 +348,16 @@ async function resetAutomation() {
             // Reset UI
             hideLoading();
             hideStatus();
+            hideSessionInfo();
             document.getElementById('preview').style.display = 'none';
             document.getElementById('resetBtn').style.display = 'none';
             document.getElementById('nikData').value = '';
             document.getElementById('limiter').value = '';
             document.getElementById('username').value = '';
             document.getElementById('password').value = '';
+            
+            // Clear session ID
+            currentSessionId = null;
             
             showStatus('✅ Automation reset successfully!', 'success');
             setTimeout(() => hideStatus(), 3000);

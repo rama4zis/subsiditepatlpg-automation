@@ -120,6 +120,15 @@ button {
   background: #5a6268;
 }
 
+.btn-danger {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #c82333;
+}
+
 button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -165,6 +174,33 @@ button:disabled {
 .preview h4 {
   margin-bottom: 10px;
   color: #333;
+}
+
+.session-info {
+  margin-top: 15px;
+  padding: 15px;
+  background: #e7f3ff;
+  border-radius: 8px;
+  border-left: 4px solid #007bff;
+}
+
+.session-info h4 {
+  margin-bottom: 10px;
+  color: #0056b3;
+}
+
+.session-info p {
+  margin: 5px 0;
+  font-size: 14px;
+  color: #333;
+}
+
+.session-info span {
+  font-family: "Courier New", monospace;
+  background: #f8f9fa;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #495057;
 }
 
 .nik-list {

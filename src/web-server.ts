@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import puppeteer, { Browser, Page } from 'puppeteer';
+import { v4 as uuidv4 } from 'uuid';
 import { LoginService } from './logic/login';
 import { InputDataService } from './logic/input-data';
 import { ExcelExportService } from './logic/excel-export';
@@ -16,6 +17,7 @@ const port = 3000;
 
 // Progress tracking
 interface ProcessingProgress {
+    sessionId: string;
     total: number;
     processed: number;
     current: string;
@@ -28,8 +30,13 @@ interface ProcessingProgress {
     data?: any[];
     limit?: number;
     successfulProcessed?: number;
+    username?: string;
 }
 
+// Store multiple user sessions
+const activeSessions = new Map<string, ProcessingProgress>();
+
+// Backward compatibility - keep for existing logic that might reference it
 let currentProgress: ProcessingProgress | null = null;
 
 // Middleware
@@ -68,11 +75,15 @@ app.post('/api/process-nik', async (req: Request, res: Response) => {
         // Parse limiter
         const processLimit = limiter && parseInt(limiter) > 0 ? parseInt(limiter) : nikNumbers.length;
 
+        // Generate unique session ID
+        const sessionId = uuidv4();
+
         // Send immediate response that processing has started
         const startTime = new Date();
         const estimatedEndTime = new Date(startTime.getTime() + (Math.min(processLimit, nikNumbers.length) * 5000)); // 5 seconds per NIK
 
-        currentProgress = {
+        const sessionProgress: ProcessingProgress = {
+            sessionId: sessionId,
             total: nikNumbers.length,
             processed: 0,
             current: '',
@@ -80,10 +91,18 @@ app.post('/api/process-nik', async (req: Request, res: Response) => {
             startTime: startTime,
             estimatedEndTime: estimatedEndTime,
             limit: processLimit,
-            successfulProcessed: 0
+            successfulProcessed: 0,
+            username: username
         };
 
+        // Store session in the map
+        activeSessions.set(sessionId, sessionProgress);
+        
+        // Keep backward compatibility for any legacy code
+        currentProgress = sessionProgress;
+
         res.json({
+            sessionId: sessionId, // Return session ID to client
             message: 'Processing started',
             nikCount: nikNumbers.length,
             nikNumbers: nikNumbers.slice(0, 5), // Show first 5 for preview
@@ -92,8 +111,8 @@ app.post('/api/process-nik', async (req: Request, res: Response) => {
             estimatedTimeMinutes: Math.ceil(Math.min(processLimit, nikNumbers.length) * 5 / 60)
         });
 
-        // Start automation in background
-        processAutomation(nikNumbers, processLimit, { username, password }).catch(console.error);
+        // Start automation in background with session ID
+        processAutomation(nikNumbers, processLimit, { username, password }, sessionId).catch(console.error);
 
     } catch (error) {
         console.error('Error:', error);
@@ -101,7 +120,48 @@ app.post('/api/process-nik', async (req: Request, res: Response) => {
     }
 });
 
-// API endpoint to check automation status
+// API endpoint to check automation status - Support both session-based and legacy
+app.get('/api/status/:sessionId', (req: Request, res: Response) => {
+    const sessionId = req.params.sessionId;
+    let progress: ProcessingProgress | null = null;
+
+    progress = activeSessions.get(sessionId) || null;
+    if (!progress) {
+        res.json({ status: 'Session not found or expired' });
+        return;
+    }
+
+    const now = new Date();
+    const elapsedMs = now.getTime() - progress.startTime.getTime();
+    const elapsedMinutes = Math.floor(elapsedMs / 60000);
+    const elapsedSeconds = Math.floor((elapsedMs % 60000) / 1000);
+
+    let remainingTime = '';
+    if (progress.status === 'processing') {
+        const remainingNiks = (progress.limit || progress.total) - (progress.successfulProcessed || 0);
+        const remainingMs = remainingNiks * 5000; // 5 seconds per NIK
+        const remainingMinutes = Math.floor(remainingMs / 60000);
+        const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+        remainingTime = `${remainingMinutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    }
+
+    res.json({
+        sessionId: progress.sessionId,
+        total: progress.total,
+        processed: progress.processed,
+        current: progress.current,
+        status: progress.status,
+        elapsedTime: `${elapsedMinutes}:${elapsedSeconds.toString().padStart(2, '0')}`,
+        remainingTime: remainingTime,
+        progress: Math.round((progress.processed / progress.total) * 100),
+        hasReport: !!(progress.reportBuffer || progress.data),
+        limit: progress.limit,
+        successfulProcessed: progress.successfulProcessed || 0,
+        username: progress.username
+    });
+});
+
+// Legacy API endpoint to check automation status
 app.get('/api/status', (req: Request, res: Response) => {
     if (!currentProgress) {
         res.json({ status: 'No active processing' });
@@ -123,6 +183,7 @@ app.get('/api/status', (req: Request, res: Response) => {
     }
 
     res.json({
+        sessionId: currentProgress.sessionId,
         total: currentProgress.total,
         processed: currentProgress.processed,
         current: currentProgress.current,
@@ -132,13 +193,78 @@ app.get('/api/status', (req: Request, res: Response) => {
         progress: Math.round((currentProgress.processed / currentProgress.total) * 100),
         hasReport: !!(currentProgress.reportBuffer || currentProgress.data),
         limit: currentProgress.limit,
-        successfulProcessed: currentProgress.successfulProcessed || 0
+        successfulProcessed: currentProgress.successfulProcessed || 0,
+        username: currentProgress.username
     });
 });
 
-// API endpoint to download the generated report
-app.get('/api/download-report', async (req: Request, res: Response) => {
+// API endpoint to download the generated report - Session-based
+app.get('/api/download-report/:sessionId', async (req: Request, res: Response) => {
     console.log('📥 Download report requested...');
+
+    const sessionId = req.params.sessionId;
+    const progress = activeSessions.get(sessionId) || null;
+    
+    if (!progress) {
+        console.log('❌ Session not found or expired');
+        res.status(404).json({ error: 'Session not found or expired' });
+        return;
+    }
+
+    console.log('📊 Current progress status:', progress.status);
+    console.log('📊 Has report buffer:', !!progress.reportBuffer);
+    console.log('📊 Has data:', !!progress.data);
+    console.log('📊 File path:', progress.filePath);
+
+    try {
+        let buffer: any;
+        let filename: string;
+        let filePath: string | null = null;
+
+        if (progress.reportBuffer) {
+            buffer = progress.reportBuffer;
+            filename = progress.filename || 'subsidite-pat-lpg-report.xlsx';
+            filePath = progress.filePath || null;
+            console.log('✅ Using existing buffer for download');
+        } else if (progress.data) {
+            // Generate Excel on-the-fly if we have data but no buffer
+            console.log('🔄 Generating Excel from data...');
+            const excelExporter = new ExcelExportService();
+            buffer = await excelExporter.exportToExcel(progress.data, undefined, true);
+            filename = `subsidite-pat-lpg-report-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.xlsx`;
+            console.log('✅ Excel generated from data');
+        } else {
+            console.log('❌ No report data available');
+            res.status(404).json({ error: 'No report data available' });
+            return;
+        }
+
+        console.log(`📥 Sending Excel download: ${filename}, buffer size: ${buffer?.length || 0} bytes`);
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Length', buffer.length);
+        res.send(buffer);
+
+        // Clean up the physical file after successful download
+        if (filePath && fs.existsSync(filePath)) {
+            try {
+                fs.unlinkSync(filePath);
+                console.log(`🗑️  Deleted temporary file: ${filePath}`);
+            } catch (deleteError) {
+                console.error(`⚠️  Failed to delete temporary file ${filePath}:`, deleteError);
+            }
+        }
+
+        console.log(`✅ Excel file downloaded successfully: ${filename}`);
+    } catch (error) {
+        console.error('❌ Error generating download:', error);
+        res.status(500).json({ error: 'Failed to generate report' });
+    }
+});
+
+// Legacy API endpoint to download the generated report
+app.get('/api/download-report', async (req: Request, res: Response) => {
+    console.log('📥 Legacy download report requested...');
 
     if (!currentProgress) {
         console.log('❌ No current progress found');
@@ -197,20 +323,64 @@ app.get('/api/download-report', async (req: Request, res: Response) => {
     }
 });
 
-// API endpoint to reset automation state
+// API endpoint to reset automation state - Session-based
+app.post('/api/reset/:sessionId', (req: Request, res: Response) => {
+    const sessionId = req.params.sessionId;
+    const sessionProgress = activeSessions.get(sessionId);
+    
+    if (sessionProgress) {
+        // Clean up current file if exists
+        if (sessionProgress.filePath && fs.existsSync(sessionProgress.filePath)) {
+            try {
+                fs.unlinkSync(sessionProgress.filePath);
+                console.log(`🗑️  Cleaned up file on session reset: ${sessionProgress.filePath}`);
+            } catch (error) {
+                console.error(`⚠️  Error cleaning up file on session reset:`, error);
+            }
+        }
+        activeSessions.delete(sessionId);
+        console.log(`🔄 Session ${sessionId} reset successfully`);
+        res.json({ success: true, message: `Session ${sessionId} reset successfully` });
+    } else {
+        res.status(404).json({ error: 'Session not found' });
+    }
+});
+
+// Legacy API endpoint to reset automation state
 app.post('/api/reset', (req: Request, res: Response) => {
-    // Clean up current file if exists
-    if (currentProgress?.filePath && fs.existsSync(currentProgress.filePath)) {
-        try {
-            fs.unlinkSync(currentProgress.filePath);
-            console.log(`🗑️  Cleaned up file on reset: ${currentProgress.filePath}`);
-        } catch (error) {
-            console.error(`⚠️  Error cleaning up file on reset:`, error);
+    // Reset all sessions (legacy behavior)
+    for (const [id, progress] of activeSessions.entries()) {
+        if (progress.filePath && fs.existsSync(progress.filePath)) {
+            try {
+                fs.unlinkSync(progress.filePath);
+                console.log(`🗑️  Cleaned up file on reset: ${progress.filePath}`);
+            } catch (error) {
+                console.error(`⚠️  Error cleaning up file on reset:`, error);
+            }
         }
     }
-
+    activeSessions.clear();
     currentProgress = null;
-    res.json({ success: true, message: 'Automation state reset successfully' });
+    console.log('🔄 All sessions reset successfully');
+    res.json({ success: true, message: 'All sessions reset successfully' });
+});
+
+// API endpoint to list all active sessions
+app.get('/api/sessions', (req: Request, res: Response) => {
+    const sessions = Array.from(activeSessions.entries()).map(([sessionId, progress]) => ({
+        sessionId,
+        username: progress.username,
+        status: progress.status,
+        progress: Math.round((progress.processed / progress.total) * 100),
+        startTime: progress.startTime,
+        total: progress.total,
+        processed: progress.processed
+    }));
+
+    res.json({
+        totalSessions: sessions.length,
+        sessions: sessions
+    });
 });
 
 // Function to clean up old temporary files
@@ -257,9 +427,16 @@ function parseNikData(nikData: string): string[] {
 }
 
 // Function to run automation
-async function processAutomation(nikNumbers: string[], limit?: number, credentials?: { username: string; password: string }): Promise<void> {
-    console.log(`🚀 Starting automation for ${nikNumbers.length} NIK numbers with limit: ${limit || 'unlimited'}...`);
+async function processAutomation(nikNumbers: string[], limit?: number, credentials?: { username: string; password: string }, sessionId?: string): Promise<void> {
+    console.log(`🚀 Starting automation for ${nikNumbers.length} NIK numbers with limit: ${limit || 'unlimited'} (Session: ${sessionId || 'legacy'})...`);
 
+    const sessionProgress = sessionId ? activeSessions.get(sessionId) : null;
+
+    if (sessionProgress) {
+        sessionProgress.status = 'processing';
+    }
+    
+    // Also update currentProgress for backward compatibility
     if (currentProgress) {
         currentProgress.status = 'processing';
     }
@@ -296,62 +473,102 @@ async function processAutomation(nikNumbers: string[], limit?: number, credentia
             password: process.env.PASSWORD || ''
         };
 
-        console.log('🔐 Attempting login...');
+        console.log(`🔐 Attempting login for session ${sessionId || 'legacy'}...`);
         const isLoggedIn: boolean = await loginService.login(loginCredentials, loginUrl);
 
         if (isLoggedIn) {
-            console.log(`✅ Login successful for ${loginCredentials.username}`);
+            console.log(`✅ Login successful for ${loginCredentials.username} (Session: ${sessionId || 'legacy'})`);
 
             const inputDataService = new InputDataService(page);
             const result = await inputDataService.inputData(nikNumbers, (processed: number, current: string) => {
-                if (currentProgress) {
+                // Update session-specific progress
+                if (sessionProgress) {
+                    sessionProgress.processed = processed;
+                    sessionProgress.current = current;
+                    console.log(`📊 Session ${sessionId} Progress: ${processed}/${sessionProgress.total} - Processing: ${current}`);
+                }
+                
+                // Also update currentProgress for backward compatibility
+                if (currentProgress && (!sessionId || currentProgress.sessionId === sessionId)) {
                     currentProgress.processed = processed;
                     currentProgress.current = current;
-                    console.log(`📊 Progress: ${processed}/${currentProgress.total} - Processing: ${current}`);
                 }
             }, limit);
 
-            if (currentProgress) {
-                currentProgress.status = 'completed';
+            // Update session status to completed
+            if (sessionProgress) {
+                sessionProgress.status = 'completed';
 
-                console.log(`🎯 Automation result type: ${typeof result}`);
-                console.log(`🎯 Automation result: ${result}`);
+                console.log(`🎯 Session ${sessionId} - Automation result type: ${typeof result}`);
+                console.log(`🎯 Session ${sessionId} - Automation result: ${result}`);
 
                 // If result is a file path, read it and create buffer for web download
                 if (typeof result === 'string') {
                     try {
                         if (fs.existsSync(result)) {
                             const fileBuffer = fs.readFileSync(result);
-                            currentProgress.reportBuffer = fileBuffer;
-                            currentProgress.filename = path.basename(result);
-                            currentProgress.filePath = result; // Store file path for cleanup
-                            console.log(`📊 File read for web download: ${path.basename(result)}, size: ${fileBuffer.length} bytes`);
+                            sessionProgress.reportBuffer = fileBuffer;
+                            sessionProgress.filename = path.basename(result);
+                            sessionProgress.filePath = result; // Store file path for cleanup
+                            console.log(`📊 Session ${sessionId} - File read for web download: ${path.basename(result)}, size: ${fileBuffer.length} bytes`);
                         } else {
-                            console.log(`❌ File not found: ${result}`);
+                            console.log(`❌ Session ${sessionId} - File not found: ${result}`);
                         }
                     } catch (error) {
-                        console.error('Error reading file for web download:', error);
+                        console.error(`❌ Session ${sessionId} - Error reading file for web download:`, error);
                     }
                 } else {
-                    console.log('⚠️  No file path returned from automation');
+                    console.log(`⚠️  Session ${sessionId} - No file path returned from automation`);
                 }
             }
 
-            console.log('🎉 Automation completed successfully!');
+            // Also update currentProgress for backward compatibility
+            if (currentProgress && (!sessionId || currentProgress.sessionId === sessionId)) {
+                currentProgress.status = 'completed';
+
+                if (typeof result === 'string') {
+                    try {
+                        if (fs.existsSync(result)) {
+                            const fileBuffer = fs.readFileSync(result);
+                            currentProgress.reportBuffer = fileBuffer;
+                            currentProgress.filename = path.basename(result);
+                            currentProgress.filePath = result;
+                        }
+                    } catch (error) {
+                        console.error('Error reading file for legacy web download:', error);
+                    }
+                }
+            }
+
+            console.log(`🎉 Session ${sessionId || 'legacy'} - Automation completed successfully!`);
         } else {
-            console.log('❌ Login failed');
-            if (currentProgress) {
+            console.log(`❌ Session ${sessionId || 'legacy'} - Login failed`);
+            if (sessionProgress) {
+                sessionProgress.status = 'error';
+            }
+            if (currentProgress && (!sessionId || currentProgress.sessionId === sessionId)) {
                 currentProgress.status = 'error';
             }
         }
 
     } catch (error: unknown) {
-        console.error('❌ Automation error:', error);
-        if (currentProgress) {
+        console.error(`❌ Session ${sessionId || 'legacy'} - Automation error:`, error);
+        if (sessionProgress) {
+            sessionProgress.status = 'error';
+        }
+        if (currentProgress && (!sessionId || currentProgress.sessionId === sessionId)) {
             currentProgress.status = 'error';
         }
     } finally {
         await browser.close();
+        
+        // Auto-cleanup session after completion (optional - you can adjust timing)
+        if (sessionId && sessionProgress) {
+            setTimeout(() => {
+                console.log(`🗑️  Auto-cleaning session ${sessionId} after 5 minutes`);
+                activeSessions.delete(sessionId);
+            }, 300000); // 5 minutes
+        }
     }
 }
 
