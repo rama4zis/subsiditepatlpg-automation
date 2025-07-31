@@ -16,8 +16,8 @@ export class InputDataService {
 
     // Helper function to push pelanggan data to the done array
     private async pushPelangganDone(
-        pelangganDone: any[], 
-        nik: string, 
+        pelangganDone: any[],
+        nik: string,
         status: 'Berhasil' | 'Gagal',
         name?: string | null,
         jenisPengguna?: string | null,
@@ -31,7 +31,7 @@ export class InputDataService {
             error: error || undefined,
             timestamp: new Date()
         });
-        
+
         if (status === 'Gagal') {
             console.error(`❌ Failed to process NIK ${nik}: ${error || 'Unknown error'}`);
             await new Promise(resolve => setTimeout(resolve, 2000)); // wait for 2 seconds before next log
@@ -64,7 +64,7 @@ export class InputDataService {
             const maxLimit = limit && limit > 0 ? limit : nik.length;
             let successfulProcessed = 0;
             let normalWaitingTime;
-            if(nik.length > 10) {
+            if (nik.length > 10) {
                 // If more than 10 NIKs, set a longer waiting time
                 normalWaitingTime = 3000; // 3 seconds
             } else {
@@ -73,6 +73,8 @@ export class InputDataService {
 
             // For multiple NIK
             for (let i = 0; i < nik.length && successfulProcessed < maxLimit; i++) {
+                // default go to nik verification page
+                await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
                 const number = nik[i];
 
                 // Update progress
@@ -127,7 +129,7 @@ export class InputDataService {
                     if (multipleChoicesElement) {
                         console.log(`Multiple choices found for NIK ${number}. Selecting the first option.`);
 
-                        const btnTransaction = await this.page.$('button[data-testid="btnContinueTrx"]');
+                        const btnTransaction = await this.page.waitForSelector('button[data-testid="btnContinueTrx"]');
                         if (btnTransaction) {
                             console.log(`Button to continue transaction found for NIK ${number}. Clicking...`);
                             await btnTransaction.click({ delay: 100 });
@@ -190,7 +192,7 @@ export class InputDataService {
                         await new Promise(resolve => setTimeout(resolve, totalSeconds * 1000)); // wait for the specified time
                         // take screenshot
                     }
-                    
+
                     // reload page 
                     await this.page.reload({ waitUntil: 'load' });
                     // retry the current NIK
@@ -215,52 +217,51 @@ export class InputDataService {
 
                 try {
                     await new Promise(resolve => setTimeout(resolve, 500));
-                    const alert2 = await this.page.$('[class*="mantine-Stack-root"]');
 
-                    // if allert innerText includes "melebihi batas kewajaran"
-                    if (alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('melebihi batas kewajaran'), alert2)) {
-                        console.error(`NIK ${number} exceeds the reasonable limit. Please check the NIK.`);
-                        // push to pelangganDone with error status
-                        await this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `NIK exceeds the reasonable limit`);
-                        // refresh page
-                        await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
-                        console.log(`Refreshed page to input next NIK.`);
-                        continue; // Skip to the next NIK
-                    } else if(alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('Tidak dapat transaksi'), alert2)) {
-                        console.error(`KK ${number} exceeds the reasonable limit. Please check the NIK.`);
-                        // push to pelangganDone with error status
-                        // Tidak dapat transaksi karena telah melebihi batas kewajaran pembelian LPG 3 kg bulan ini untuk NIK yang terdaftar pada nomor KK yang sama.
-                        await this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `KK exceeds the reasonable limit`);
-                        // refresh page
-                        await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
-                        console.log(`Refreshed page to input next NIK.`);
-                        continue; // Skip to the next NIK
+                    // const alert2 = await this.page.$('[class*="mantine-Stack-root"]');
+                    const alert2 = await this.page.waitForSelector('[class*="mantine-Stack-root"]', { timeout: 5000 });
+                    if (alert2) {
+                        if (alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('melebihi batas kewajaran'), alert2)) {
+                            console.error(`NIK ${number} exceeds the reasonable limit. Please check the NIK.`);
+                            // push to pelangganDone with error status
+                            await this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `NIK exceeds the reasonable limit`);
+                            // refresh page
+                            await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
+                            console.log(`Refreshed page to input next NIK.`);
+                            continue; // Skip to the next NIK
+                        } else if (alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('Tidak dapat transaksi'), alert2)) {
+                            console.error(`KK ${number} exceeds the reasonable limit. Please check the NIK.`);
+                            // push to pelangganDone with error status
+                            // Tidak dapat transaksi karena telah melebihi batas kewajaran pembelian LPG 3 kg bulan ini untuk NIK yang terdaftar pada nomor KK yang sama.
+                            await this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `KK exceeds the reasonable limit`);
+                            // refresh page
+                            await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
+                            console.log(`Refreshed page to input next NIK.`);
+                            continue; // Skip to the next NIK
+                        } else if(alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('stok tabung yang dapat dijual kosong'), alert2)) {
+                            console.error(`NIK ${number} cannot proceed due to empty stock. Please check the stock.`);
+                            // push to pelangganDone with error status
+                            await this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `Cannot proceed due to empty stock`);
+                            // refresh page
+                            await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
+                            continue; // Skip to the next NIK
+
+                        } else {
+                            console.log(`NIK ${number} is within the reasonable limit, proceeding...`);
+                        }
                     } else {
-                        console.log(`NIK ${number} is within the reasonable limit, proceeding...`);
+                        console.log(`No alert found for NIK ${number}, proceeding...`);
                     }
+                    // if allert innerText includes "melebihi batas kewajaran"
+
                 } catch (error) {
                     console.error(`Error while checking limit for NIK ${number}:`, error);
-                }
-
-                // if mantine-Stack-root mantine-1oo286g "Tidak dapat transaksi, stok tabung yang dapat dijual kosong. Silakan lakukan penebusan."
-                const checkStock = await this.page.$('[class*="mantine-Stack-root"]');
-                if (checkStock && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('stok tabung yang dapat dijual kosong'), checkStock)) {
-                    console.error(`NIK ${number} cannot proceed due to empty stock. Please check the stock.`);
-                    // push to pelangganDone with error status
-                    await this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `Cannot proceed due to empty stock`);
-                    // refresh page
-                    await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
-                    console.log(`Refreshed page for NIK ${number}.`);
-                    // End the program, break the loop
-                    break;
-                } else {
-                    console.log(`Stok is still available, proceeding with NIK ${number}.`);
                 }
 
                 // Check if jenis pengguna is Rumah Tangga
                 const cekPesananButton = await this.page.$('button[data-testid="btnCheckOrder"]');
 
-                if(cekPesananButton){
+                if (cekPesananButton) {
                     // waitforselector
                     // try 2 times 
                     let errorCount = 0;
@@ -288,7 +289,7 @@ export class InputDataService {
                         console.log(`Add button not found for NIK ${number} after retries. Continuing to next NIK.`);
                         continue; // Skip to the next NIK
                     }
-                    
+
                     console.log(`Add button found for NIK ${number}, proceeding with payment.`);
                 }
                 const addBButton = await this.page.$('button[data-testid="actionIcon2"]');
@@ -323,7 +324,7 @@ export class InputDataService {
                             await this.page.reload({ waitUntil: 'load' });
                             continue;
                         }
-                       
+
                         // Push to pelangganDone array
                         await this.pushPelangganDone(pelangganDone, number, 'Berhasil', namaPelanggan, jenisPengguna);
 
@@ -337,7 +338,7 @@ export class InputDataService {
                             break;
                         }
                     }
-                } else if(addBButton) {
+                } else if (addBButton) {
                     console.log(`Jenis Pengguna: ${dataPelanggan[dataPelanggan.length - 2]}`);
                     for (let i = 1; i <= 3; i++) { // Click the button 3 times
                         await this.page.click('button[data-testid="actionIcon2"]', { delay: 100 });
@@ -366,7 +367,7 @@ export class InputDataService {
                             break;
                         }
                     }
-                } 
+                }
 
                 // go back to input field for the next NIK
                 await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
