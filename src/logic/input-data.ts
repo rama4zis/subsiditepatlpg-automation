@@ -123,7 +123,7 @@ export class InputDataService {
 
                 // Check if multiple choices dialog appears
                 try {
-                    const multipleChoicesElement = await this.page.$('div#mantine-r7-body');
+                    const multipleChoicesElement = await this.page.$('[role="dialog"]');
                     if (multipleChoicesElement) {
                         console.log(`Multiple choices found for NIK ${number}. Selecting the first option.`);
 
