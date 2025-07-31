@@ -219,7 +219,7 @@ export class InputDataService {
                     await new Promise(resolve => setTimeout(resolve, 500));
 
                     // const alert2 = await this.page.$('[class*="mantine-Stack-root"]');
-                    const alert2 = await this.page.waitForSelector('[class*="mantine-Stack-root"]', { timeout: 5000 });
+                    const alert2 = await this.page.waitForSelector('[class*="mantine-Stack-root"]', { timeout: 2000 });
                     if (alert2) {
                         if (alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('melebihi batas kewajaran'), alert2)) {
                             console.error(`NIK ${number} exceeds the reasonable limit. Please check the NIK.`);
@@ -238,7 +238,7 @@ export class InputDataService {
                             await this.page.goto('https://subsiditepatlpg.mypertamina.id/merchant/app/verification-nik', { waitUntil: 'load' });
                             console.log(`Refreshed page to input next NIK.`);
                             continue; // Skip to the next NIK
-                        } else if(alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('stok tabung yang dapat dijual kosong'), alert2)) {
+                        } else if (alert2 && await this.page.evaluate(el => (el as HTMLElement).innerText.includes('stok tabung yang dapat dijual kosong'), alert2)) {
                             console.error(`NIK ${number} cannot proceed due to empty stock. Please check the stock.`);
                             // push to pelangganDone with error status
                             await this.pushPelangganDone(pelangganDone, number, 'Gagal', namaPelanggan, jenisPengguna, `Cannot proceed due to empty stock`);
@@ -249,13 +249,11 @@ export class InputDataService {
                         } else {
                             console.log(`NIK ${number} is within the reasonable limit, proceeding...`);
                         }
-                    } else {
-                        console.log(`No alert found for NIK ${number}, proceeding...`);
                     }
                     // if allert innerText includes "melebihi batas kewajaran"
-
                 } catch (error) {
-                    console.error(`Error while checking limit for NIK ${number}:`, error);
+                    console.log(`No alert found for NIK ${number}, proceeding...`);
+                    // console.error(`Error while checking limit for NIK ${number}:`, error);
                 }
 
                 // Check if jenis pengguna is Rumah Tangga
